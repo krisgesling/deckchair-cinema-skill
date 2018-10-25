@@ -21,6 +21,7 @@ class DeckchairCinema(MycroftSkill):
             today = extract_datetime(" ")[0]
             when = extract_datetime(
                         message.data.get('utterance'), lang=self.lang)[0]
+
             # 2. Scrape website for movie on this date
             webpage = requests.get('http://www.deckchaircinema.com/program/')
             dataTree = html.fromstring(webpage.content)
@@ -31,17 +32,19 @@ class DeckchairCinema(MycroftSkill):
                 x for x in trList
                 if x.getchildren()[0].text==when.strftime("%A %-d %B")
             ]), None)
-            # Test next row and add films to list until non-film row is found
-            moviesOnDate = []
-            def addMovieFromDate(row):
+
+            #TODO 3. If date not found return some other message
+
+            # 4. Add all film rows that follow a date row to a list
+            def addMovieFromDate(row, moviesOnDate):
                 if row.getnext().getchildren()[0].get("class") == "program-film":
                     moviesOnDate.append(row.getnext())
-                    return addMovieFromDate(row.getnext())
+                    return addMovieFromDate(row.getnext(), moviesOnDate)
                 else:
-                    return None
-            addMovieFromDate(dateRow)
-            # 3. If date not found test date range and return some other message
-            # 4. Construct message to return
+                    return moviesOnDate
+            moviesOnDate = addMovieFromDate(dateRow, [])
+
+            # 5. Construct message to return
             movieDetails = ""
             for movie in moviesOnDate:
                 if len(movieDetails)>0:
@@ -51,18 +54,19 @@ class DeckchairCinema(MycroftSkill):
                 movieDetails+=" at "
                 # Movie time
                 movieDetails+=movie.getchildren()[1].text
-                ### OTHER DETAILS AVAILABLE ON SCRAPED PAGE
-                # Length of film = movie.getchildren()[2].text
-                # Film age rating = movie.getchildren()[3].text
-                # Film location [deckchair or other cinema] = movie.getchildren()[4].text
-                # Additional options in [5].getchildren() are:
-                    # [film details via separate page,
-                    #  youtube trailer,
-                    #  buy tickets,
-                    #  ical calendar item]
+
+            ### OTHER DETAILS AVAILABLE ON SCRAPED PAGE ###
+            # Length of film = movie.getchildren()[2].text
+            # Film age rating = movie.getchildren()[3].text
+            # Film location [deckchair or other cinema] = movie.getchildren()[4].text
+            # Additional options in [5].getchildren() are:
+                # [film details via linked page,
+                #  youtube trailer link,
+                #  buy tickets link,
+                #  ical calendar item link]
 
             self.speak_dialog('cinema.deckchair', {'when': nice_date(when, now=today), 'movieDetails': movieDetails})
-        # TODO look at error handling of requests module, this is taken from urllib
+
         except ( requests.exceptions.ConnectionError
             or requests.exceptions.HTTPError
             or requests.exceptions.Timeout
