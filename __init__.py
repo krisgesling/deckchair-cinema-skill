@@ -4,7 +4,7 @@ from mycroft import MycroftSkill, intent_file_handler
 from mycroft.util.log import LOG
 from mycroft.util.format import nice_date
 from mycroft.util.parse import extract_datetime
-import requests
+import requests, datetime
 
 __author__ = 'krisgesling'
 LOGGER = LOG(__name__)
@@ -18,7 +18,6 @@ class DeckchairCinema(MycroftSkill):
         try:
             # 1. Extract date, or default to today
             # Get a date from requests like "what's on at deckchair tomorrow"
-            today = extract_datetime(" ")[0]
             when = extract_datetime(
                         message.data.get('utterance'), lang=self.lang)[0]
 
@@ -33,39 +32,49 @@ class DeckchairCinema(MycroftSkill):
                 if x.getchildren()[0].text==when.strftime("%A %-d %B")
             ]), None)
 
-            #TODO 3. If date not found return some other message
-
-            # 4. Add all film rows that follow a date row to a list
-            def addMovieFromDate(row, moviesOnDate):
-                if row.getnext().getchildren()[0].get("class") == "program-film":
-                    moviesOnDate.append(row.getnext())
-                    return addMovieFromDate(row.getnext(), moviesOnDate)
+            # 3. Test if date is in deckchair program range
+            firstDate = self.__getDateFromStr(trList[0].getchildren()[0].text)
+            def getLastDate(row):
+                if row.getprevious().getchildren()[0].text:
+                    return self.__getDateFromStr(row.getprevious().getchildren()[0].text)
                 else:
-                    return moviesOnDate
-            moviesOnDate = addMovieFromDate(dateRow, [])
+                    getLastDate(row.getprevious())
+            lastDate = getLastDate(trList[len(trList)-1])
 
-            # 5. Construct message to return
-            movieDetails = ""
-            for movie in moviesOnDate:
-                if len(movieDetails)>0:
-                    movieDetails+=", and "
-                # Movie title
-                movieDetails+=movie.getchildren()[0].getchildren()[0].text
-                movieDetails+=" at "
-                # Movie time
-                movieDetails+=movie.getchildren()[1].text
+            isDateInRange = firstDate <= when.replace(tzinfo=None) <= lastDate
 
-            ### OTHER DETAILS AVAILABLE ON SCRAPED PAGE ###
-            # Length of film = movie.getchildren()[2].text
-            # Film age rating = movie.getchildren()[3].text
-            # Film location [deckchair or other cinema] = movie.getchildren()[4].text
-            # Additional options in [5].getchildren() are:
-                # [film details via linked page,
-                #  youtube trailer link,
-                #  buy tickets link,
-                #  ical calendar item link]
-
-            self.speak_dialog('cinema.deckchair', {'when': nice_date(when, now=today), 'movieDetails': movieDetails})
+            if isDateInRange:
+                # 4. Add all film rows that follow a date row to a list
+                moviesOnDate = self.__addMovieFromDate(dateRow)
+                # 5. Construct message to return
+                movieDetails = ""
+                for movie in moviesOnDate:
+                    if len(movieDetails)>0:
+                        movieDetails+=", and "
+                    # Movie title
+                    movieDetails+=movie.getchildren()[0].getchildren()[0].text
+                    movieDetails+=" at "
+                    # Movie time
+                    movieDetails+=movie.getchildren()[1].text
+                    ### OTHER DETAILS AVAILABLE ON SCRAPED PAGE ###
+                    # Length of film = movie.getchildren()[2].text
+                    # Film age rating = movie.getchildren()[3].text
+                    # Film location [deckchair or other cinema] = movie.getchildren()[4].text
+                    # Additional options in [5].getchildren() are:
+                        # [film details via linked page,
+                        #  youtube trailer link,
+                        #  buy tickets link,
+                        #  ical calendar item link]
+                self.speak_dialog('cinema.deckchair', {
+                    'when': nice_date(when, now=datetime.datetime.now()),
+                    'movieDetails': movieDetails
+                    })
+            else:
+                self.speak_dialog('error.daterange', {
+                    'when': nice_date(when, now=datetime.datetime.now()),
+                    'firstDate': nice_date(firstDate, now=datetime.datetime.now()),
+                    'lastDate': nice_date(lastDate, now=datetime.datetime.now())
+                    })
 
         except ( requests.exceptions.ConnectionError
             or requests.exceptions.HTTPError
@@ -80,6 +89,17 @@ class DeckchairCinema(MycroftSkill):
 
     def stop(self):
         pass
+
+    def __addMovieFromDate(self, row, moviesOnDate=[]):
+        if row.getnext().getchildren()[0].get("class") == "program-film":
+            moviesOnDate.append(row.getnext())
+            return self.__addMovieFromDate(row.getnext(), moviesOnDate)
+        else:
+            return moviesOnDate
+
+    def __getDateFromStr(self, string):
+        year = str(datetime.datetime.now().year)
+        return datetime.datetime.strptime(string+" "+year, "%A %d %B %Y")
 
 def create_skill():
     return DeckchairCinema()
