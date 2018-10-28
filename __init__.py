@@ -2,12 +2,15 @@ from adapt.intent import IntentBuilder
 from lxml import html
 from mycroft import MycroftSkill, intent_file_handler
 from mycroft.util.log import LOG
-from mycroft.util.format import nice_date
+from mycroft.util.format import nice_date, nice_time
 from mycroft.util.parse import extract_datetime
 import requests, datetime
 
 __author__ = 'krisgesling'
 LOGGER = LOG(__name__)
+
+# TODO translate movie times using nice_time
+# TODO add context to allow user to then ask about film details
 
 class DeckchairCinema(MycroftSkill):
     def __init__(self):
@@ -33,14 +36,9 @@ class DeckchairCinema(MycroftSkill):
             ]), None)
 
             # 3. Test if date is in deckchair program range
-            firstDate = self.__getDateFromStr(trList[0].getchildren()[0].text)
-            def getLastDate(row):
-                if row.getprevious().getchildren()[0].text:
-                    return self.__getDateFromStr(row.getprevious().getchildren()[0].text)
-                else:
-                    getLastDate(row.getprevious())
-            lastDate = getLastDate(trList[len(trList)-1])
-
+            firstDate = self.__getFirstDate(trList)
+            lastDate = self.__getLastDate(trList)
+            # TODO add timezone info to first and last date instead of remove from when
             isDateInRange = firstDate <= when.replace(tzinfo=None) <= lastDate
 
             if isDateInRange:
@@ -53,9 +51,10 @@ class DeckchairCinema(MycroftSkill):
                         movieDetails+=", and "
                     # Movie title
                     movieDetails+=movie.getchildren()[0].getchildren()[0].text
-                    movieDetails+=" at "
+                    movieDetails+=", at "
                     # Movie time
-                    movieDetails+=movie.getchildren()[1].text
+                    movieDetails+=movie.getchildren()[1].text[0:-2]
+                    movieDetails+=" pee em"
                     ### OTHER DETAILS AVAILABLE ON SCRAPED PAGE ###
                     # Length of film = movie.getchildren()[2].text
                     # Film age rating = movie.getchildren()[3].text
@@ -100,6 +99,26 @@ class DeckchairCinema(MycroftSkill):
     def __getDateFromStr(self, string):
         year = str(datetime.datetime.now().year)
         return datetime.datetime.strptime(string+" "+year, "%A %d %B %Y")
+
+    def __getFirstDate(self, trList):
+        # Recursive function to return first date row of program
+        def getFirstDateRow(row):
+            if row.getchildren()[0].get("class") == "program-date":
+                return row.getchildren()[0].text
+            else:
+                return getFirstDateRow(row.getnext())
+        dateText = getFirstDateRow(trList[0])
+        return self.__getDateFromStr(dateText)
+
+    def __getLastDate(self, trList):
+        # Recursive function to return last date row of program
+        def getLastDateRow(row):
+            if row.getchildren()[0].get("class") == "program-date":
+                return row.getchildren()[0].text
+            else:
+                return getLastDateRow(row.getprevious())
+        dateText = getLastDateRow(trList[len(trList)-1])
+        return self.__getDateFromStr(dateText)
 
 def create_skill():
     return DeckchairCinema()
