@@ -53,8 +53,12 @@ class DeckchairCinema(MycroftSkill):
                     movieDetails+=movie.getchildren()[0].getchildren()[0].text
                     movieDetails+=", at "
                     # Movie time
-                    movieDetails+=movie.getchildren()[1].text[0:-2]
-                    movieDetails+=" pee em"
+                    movieTime = when.replace(
+                        hour=int(movie.getchildren()[1].text[0:-5]),
+                        minute=int(movie.getchildren()[1].text[-4:-2])
+                        )
+                    movieDetails+=nice_time(movieTime)
+
                     ### OTHER DETAILS AVAILABLE ON SCRAPED PAGE ###
                     # Length of film = movie.getchildren()[2].text
                     # Film age rating = movie.getchildren()[3].text
