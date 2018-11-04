@@ -1,6 +1,7 @@
 from adapt.intent import IntentBuilder
 from lxml import html
-from mycroft import MycroftSkill, intent_file_handler
+from mycroft import MycroftSkill, intent_file_handler, intent_handler
+from mycroft.skills.context import adds_context, removes_context
 from mycroft.util.log import LOG
 from mycroft.util.format import nice_date, nice_time
 from mycroft.util.parse import extract_datetime
@@ -43,35 +44,32 @@ class DeckchairCinema(MycroftSkill):
 
             if isDateInRange:
                 # 4. Add all film rows that follow a date row to a list
-                moviesOnDate = self.__addMovieFromDate(dateRow)
+                moviesOnDate = self.__addMovieFromDate(dateRow, moviesOnDate=[])
                 # 5. Construct message to return
-                movieDetails = ""
+                movieDetailsDialog = ""
+                contextMovieTitle = ""
                 for movie in moviesOnDate:
-                    if len(movieDetails)>0:
-                        movieDetails+=", and "
+                    self.__addMovieDetailsToDict(movie)
+                    if len(movieDetailsDialog)>0:
+                        movieDetailsDialog+=", and "
+                        contextMovieTitle+="~~:and:~~"
                     # Movie title
-                    movieDetails+=movie.getchildren()[0].getchildren()[0].text
-                    movieDetails+=", at "
+                    movieTitle = movie.getchildren()[0].getchildren()[0].text
+                    contextMovieTitle+=movieTitle
+                    movieDetailsDialog+=movieTitle
+                    movieDetailsDialog+=", at "
                     # Movie time
                     movieTime = when.replace(
                         hour=int(movie.getchildren()[1].text[0:-5]),
                         minute=int(movie.getchildren()[1].text[-4:-2])
                         )
-                    movieDetails+=nice_time(movieTime)
+                    movieDetailsDialog+=nice_time(movieTime)
 
-                    ### OTHER DETAILS AVAILABLE ON SCRAPED PAGE ###
-                    # Length of film = movie.getchildren()[2].text
-                    # Film age rating = movie.getchildren()[3].text
-                    # Film location [deckchair or other cinema] = movie.getchildren()[4].text
-                    # Additional options in [5].getchildren() are:
-                        # [film details via linked page,
-                        #  youtube trailer link,
-                        #  buy tickets link,
-                        #  ical calendar item link]
                 self.speak_dialog('cinema.deckchair', {
                     'when': nice_date(when, now=datetime.datetime.now()),
-                    'movieDetails': movieDetails
+                    'movieDetails': movieDetailsDialog
                     })
+                self.set_context('MovieTitle', contextMovieTitle)
             else:
                 self.speak_dialog('error.daterange', {
                     'when': nice_date(when, now=datetime.datetime.now()),
@@ -90,8 +88,24 @@ class DeckchairCinema(MycroftSkill):
             LOG.error("Error: {0}".format(e))
             self.speak_dialog('error')
 
+    @intent_handler(IntentBuilder('MovieRatingIntent')
+        .require('MovieTitle')
+        .require('rating')
+        .build())
+    def handle_movie_rating(self, message):
+        self.__handleMovieDetailsResponse(message, 'rating')
+
+    @intent_handler(IntentBuilder('MovieLengthIntent')
+        .require('MovieTitle')
+        .require('length')
+        .build())
+    def handle_movie_length(self, message):
+        self.__handleMovieDetailsResponse(message, 'length')
+
     def stop(self):
         pass
+
+    __movieDict = {}
 
     def __addMovieFromDate(self, row, moviesOnDate=[]):
         if row.getnext().getchildren()[0].get("class") == "program-film":
@@ -99,6 +113,24 @@ class DeckchairCinema(MycroftSkill):
             return self.__addMovieFromDate(row.getnext(), moviesOnDate)
         else:
             return moviesOnDate
+
+    def __addMovieDetailsToDict(self, movie):
+        movieTitle = movie.getchildren()[0].getchildren()[0].text
+        # Convert movie length from "122m" to "2 hours and 2 minutes"
+        lengthInMinutes = movie.getchildren()[2].text[0:-1]
+        lengthForSpeaking = str(int(int(lengthInMinutes) / 60)) + " hours"
+        if (int(lengthInMinutes) % 60 > 0):
+            lengthForSpeaking += " and " + str(int(lengthInMinutes) % 60) + " minutes"
+        self.__movieDict[movieTitle] = {
+            'length': lengthForSpeaking,
+            'rating': movie.getchildren()[3].text,
+            'screeningLocation': movie.getchildren()[4].text,
+            # Additional options in [5].getchildren() are:
+                # [film details via linked page,
+                #  youtube trailer link,
+                #  buy tickets link,
+                #  ical calendar item link]
+        }
 
     def __getDateFromStr(self, string):
         year = str(datetime.datetime.now().year)
@@ -123,6 +155,18 @@ class DeckchairCinema(MycroftSkill):
                 return getLastDateRow(row.getprevious())
         dateText = getLastDateRow(trList[len(trList)-1])
         return self.__getDateFromStr(dateText)
+
+    def __handleMovieDetailsResponse(self, message, detail):
+        movieTitle = message.data.get('MovieTitle')
+        if "~~:and:~~" in movieTitle:
+            movieTitles = movieTitle.split("~~:and:~~")
+        else:
+            movieTitles = [movieTitle]
+        for title in movieTitles:
+            self.speak_dialog('movie.'+detail, {
+                'title': title,
+                detail: self.__movieDict[title][detail],
+                })
 
 def create_skill():
     return DeckchairCinema()
