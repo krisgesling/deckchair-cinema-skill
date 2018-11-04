@@ -93,16 +93,14 @@ class DeckchairCinema(MycroftSkill):
         .require('rating')
         .build())
     def handle_movie_rating(self, message):
-        movieTitle = message.data.get('MovieTitle')
-        if "~~:and:~~" in movieTitle:
-            movieTitles = movieTitle.split("~~:and:~~")
-        else:
-            movieTitles = [movieTitle]
-        for title in movieTitles:
-            self.speak_dialog('movie.rating', {
-                'movieTitle': title,
-                'rating': self.__movieDict[title]['rating'],
-                })
+        self.__handleMovieDetailsResponse(message, 'rating')
+
+    @intent_handler(IntentBuilder('MovieLengthIntent')
+        .require('MovieTitle')
+        .require('length')
+        .build())
+    def handle_movie_length(self, message):
+        self.__handleMovieDetailsResponse(message, 'length')
 
     def stop(self):
         pass
@@ -118,8 +116,13 @@ class DeckchairCinema(MycroftSkill):
 
     def __addMovieDetailsToDict(self, movie):
         movieTitle = movie.getchildren()[0].getchildren()[0].text
+        # Convert movie length from "122m" to "2 hours and 2 minutes"
+        lengthInMinutes = movie.getchildren()[2].text[0:-1]
+        lengthForSpeaking = str(int(int(lengthInMinutes) / 60)) + " hours"
+        if (int(lengthInMinutes) % 60 > 0):
+            lengthForSpeaking += " and " + str(int(lengthInMinutes) % 60) + " minutes"
         self.__movieDict[movieTitle] = {
-            'length': movie.getchildren()[2].text,
+            'length': lengthForSpeaking,
             'rating': movie.getchildren()[3].text,
             'screeningLocation': movie.getchildren()[4].text,
             # Additional options in [5].getchildren() are:
@@ -152,6 +155,18 @@ class DeckchairCinema(MycroftSkill):
                 return getLastDateRow(row.getprevious())
         dateText = getLastDateRow(trList[len(trList)-1])
         return self.__getDateFromStr(dateText)
+
+    def __handleMovieDetailsResponse(self, message, detail):
+        movieTitle = message.data.get('MovieTitle')
+        if "~~:and:~~" in movieTitle:
+            movieTitles = movieTitle.split("~~:and:~~")
+        else:
+            movieTitles = [movieTitle]
+        for title in movieTitles:
+            self.speak_dialog('movie.'+detail, {
+                'title': title,
+                detail: self.__movieDict[title][detail],
+                })
 
 def create_skill():
     return DeckchairCinema()
