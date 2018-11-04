@@ -10,9 +10,14 @@ import requests, datetime
 __author__ = 'krisgesling'
 LOGGER = LOG(__name__)
 
+# TODO remove context after some period of time
+# TODO fix intent clashes / testing problems...
+# TODO add new scrape for movie blurb
+
 class DeckchairCinema(MycroftSkill):
     def __init__(self):
         MycroftSkill.__init__(self)
+        self.__movieDict = {}
 
     @intent_file_handler('cinema.deckchair.intent')
     def handle_cinema_deckchair(self, message):
@@ -20,16 +25,16 @@ class DeckchairCinema(MycroftSkill):
             # 1. Extract date, or default to today
             # Get a date from requests like "what's on at deckchair tomorrow"
             when = extract_datetime(
-                        message.data.get('utterance'), lang=self.lang)[0]
+                message.data.get('utterance'), lang=self.lang)[0]
 
             # 2. Scrape website for movie on this date
             webpage = requests.get('http://www.deckchaircinema.com/program/')
             dataTree = html.fromstring(webpage.content)
-            # Get list of table rows from program - these alternate between date and movie[s]
+            # Get list of table rows from program
+            # - these alternate between date and movie[s]
             trList = dataTree.xpath('//table[@id="program"]/tbody/tr')
             # Find child with provided date in format "Monday 22 October"
-            dateRow = next(iter([
-                x for x in trList
+            dateRow = next(iter([ x for x in trList
                 if x.getchildren()[0].text==when.strftime("%A %-d %B")
             ]), None)
 
@@ -44,29 +49,33 @@ class DeckchairCinema(MycroftSkill):
                 moviesOnDate = self.__addMovieFromDate(dateRow, moviesOnDate=[])
                 # 5. Construct message to return
                 movieDetailsDialog = ""
-                contextMovieTitle = ""
                 for movie in moviesOnDate:
                     self.__addMovieDetailsToDict(movie)
                     if len(movieDetailsDialog)>0:
                         movieDetailsDialog+=", and "
-                        contextMovieTitle+="~~:and:~~"
                     # Movie title
                     movieTitle = movie.getchildren()[0].getchildren()[0].text
-                    contextMovieTitle+=movieTitle
-                    movieDetailsDialog+=movieTitle
-                    movieDetailsDialog+=", at "
                     # Movie time
                     movieTime = when.replace(
                         hour=int(movie.getchildren()[1].text[0:-5]),
                         minute=int(movie.getchildren()[1].text[-4:-2])
                         )
-                    movieDetailsDialog+=nice_time(movieTime)
+                    movieDetailsDialog+=movieTitle+", at "+nice_time(movieTime)
 
                 self.speak_dialog('cinema.deckchair', {
                     'when': nice_date(when, now=datetime.datetime.now()),
                     'movieDetails': movieDetailsDialog
                     })
-                self.set_context('MovieTitle', contextMovieTitle)
+
+                # 6. Set context to movieTitle
+                contextStr = ""
+                for movie in moviesOnDate:
+                    # concatenate with unique delimiter if multiple movies
+                    if len(contextStr)>0:
+                        contextStr+="~~:and:~~"
+                    contextStr+=movie.getchildren()[0].getchildren()[0].text
+                self.set_context('MovieTitle', contextStr)
+
             else:
                 self.speak_dialog('error.daterange', {
                     'when': nice_date(when, now=datetime.datetime.now()),
@@ -101,8 +110,6 @@ class DeckchairCinema(MycroftSkill):
 
     def stop(self):
         pass
-
-    __movieDict = {}
 
     def __addMovieFromDate(self, row, moviesOnDate=[]):
         if row.getnext().getchildren()[0].get("class") == "program-film":
