@@ -10,9 +10,6 @@ import requests, datetime
 __author__ = 'krisgesling'
 LOGGER = LOG(__name__)
 
-# TODO translate movie times using nice_time
-# TODO add context to allow user to then ask about film details
-
 class DeckchairCinema(MycroftSkill):
     def __init__(self):
         MycroftSkill.__init__(self)
