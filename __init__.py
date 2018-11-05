@@ -10,7 +10,6 @@ import requests, datetime
 __author__ = 'krisgesling'
 LOGGER = LOG(__name__)
 
-# TODO remove context after some period of time
 # TODO fix intent clashes / testing problems...
 # TODO add new scrape for movie blurb
 
@@ -50,7 +49,6 @@ class DeckchairCinema(MycroftSkill):
                 # 5. Construct message to return
                 movieDetailsDialog = ""
                 for movie in moviesOnDate:
-                    self.__addMovieDetailsToDict(movie)
                     if len(movieDetailsDialog)>0:
                         movieDetailsDialog+=", and "
                     # Movie title
@@ -67,10 +65,13 @@ class DeckchairCinema(MycroftSkill):
                     'movieDetails': movieDetailsDialog
                     })
 
-                # 6. Set context to movieTitle
+                # 6. Setup context and data for follow up questions
                 contextStr = ""
                 for movie in moviesOnDate:
-                    # concatenate with unique delimiter if multiple movies
+                    movieDetails = self.__fetchMovieDetails(movie)
+                    LOG.info(movieDetails['synopsis'])
+                    self.__addMovieDetailsToDict(movie)
+                    # if multiple movies, concatenate with unique delimiter
                     if len(contextStr)>0:
                         contextStr+="~~:and:~~"
                     contextStr+=movie.getchildren()[0].getchildren()[0].text
@@ -119,14 +120,10 @@ class DeckchairCinema(MycroftSkill):
             return moviesOnDate
 
     def __addMovieDetailsToDict(self, movie):
+        # TODO Separate getting details from assigning to dict
         movieTitle = movie.getchildren()[0].getchildren()[0].text
-        # Convert movie length from "122m" to "2 hours and 2 minutes"
-        lengthInMinutes = movie.getchildren()[2].text[0:-1]
-        lengthForSpeaking = str(int(int(lengthInMinutes) / 60)) + " hours"
-        if (int(lengthInMinutes) % 60 > 0):
-            lengthForSpeaking += " and " + str(int(lengthInMinutes) % 60) + " minutes"
         self.__movieDict[movieTitle] = {
-            'length': lengthForSpeaking,
+            'length': self.__convertLengthStr(movie.getchildren()[2].text[0:-1]),
             'rating': movie.getchildren()[3].text,
             'screeningLocation': movie.getchildren()[4].text,
             # Additional options in [5].getchildren() are:
@@ -135,6 +132,32 @@ class DeckchairCinema(MycroftSkill):
                 #  buy tickets link,
                 #  ical calendar item link]
         }
+
+    def __convertLengthStr(self, string):
+        # TODO Fix instance of 1 hour.
+        # Convert movie length from "122m" to "2 hours and 2 minutes"
+        lengthInMinutes = string
+        lengthForSpeaking = str(int(int(lengthInMinutes) / 60)) + " hours"
+        if (int(lengthInMinutes) % 60 > 0):
+            lengthForSpeaking += " and " + str(int(lengthInMinutes) % 60) + " minutes"
+        return lengthForSpeaking
+
+    def __fetchMovieDetails(self, movie):
+        # Fetch extra movie data from dedicated webpage
+        movieData = html.fromstring(requests.get(
+            movie.getchildren()[5].getchildren()[0].get('href')
+        ).content)
+        # rightPanel = movieData.xpath('//div[@id="main_content"]/div[@class="container"]/div[@class="row"]/div[@class="span4"]')
+        movieDetails = {
+            # First details from program page
+            'title': movie.getchildren()[0].getchildren()[0].text,
+            'length': self.__convertLengthStr(movie.getchildren()[2].text[0:-1]),
+            'rating': movie.getchildren()[3].text,
+            'screeningLocation': movie.getchildren()[4].text,
+            # Remaining from movieData
+            'synopsis': movieData.xpath('//div[@id="main_content"]/div[@class="container"]/div[@class="row"]/div[@class="span8"]/div[@class="content"]/p/text()')[0],
+        }
+        return movieDetails
 
     def __getDateFromStr(self, string):
         year = str(datetime.datetime.now().year)
