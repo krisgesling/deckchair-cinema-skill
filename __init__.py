@@ -69,7 +69,7 @@ class DeckchairCinema(MycroftSkill):
                 contextStr = ""
                 for movie in moviesOnDate:
                     movieDetails = self.__fetchMovieDetails(movie)
-                    LOG.info(movieDetails['synopsis'])
+                    # LOG.info(movieDetails)
                     self.__addMovieDetailsToDict(movie)
                     # if multiple movies, concatenate with unique delimiter
                     if len(contextStr)>0:
@@ -144,10 +144,17 @@ class DeckchairCinema(MycroftSkill):
 
     def __fetchMovieDetails(self, movie):
         # Fetch extra movie data from dedicated webpage
-        movieData = html.fromstring(requests.get(
-            movie.getchildren()[5].getchildren()[0].get('href')
-        ).content)
+        moviePage = requests.get(movie.getchildren()[5].getchildren()[0].get('href'))
+        movieData = html.fromstring(moviePage.content)
+        synopsisEl = movieData.xpath('//div[@id="main_content"]/div[@class="container"]/div[@class="row"]/div[@class="span8"]/div[@class="content"]/p')
+        # Sometimes they put a span tag around the synopsis text...
+        synopsis = synopsisEl[0].text if synopsisEl[0].text else synopsisEl[0].getchildren()[0].text
         # rightPanel = movieData.xpath('//div[@id="main_content"]/div[@class="container"]/div[@class="row"]/div[@class="span4"]')
+        # LOG.info(len(rightPanel))
+        # directorRow = next(iter([ x for x in rightPanel
+        #     if x.text=="Director"
+        # ]), None)
+        # LOG.info(directorRow)
         movieDetails = {
             # First details from program page
             'title': movie.getchildren()[0].getchildren()[0].text,
@@ -155,7 +162,7 @@ class DeckchairCinema(MycroftSkill):
             'rating': movie.getchildren()[3].text,
             'screeningLocation': movie.getchildren()[4].text,
             # Remaining from movieData
-            'synopsis': movieData.xpath('//div[@id="main_content"]/div[@class="container"]/div[@class="row"]/div[@class="span8"]/div[@class="content"]/p/text()')[0],
+            'synopsis': synopsis,
         }
         return movieDetails
 
