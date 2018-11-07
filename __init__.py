@@ -10,8 +10,7 @@ import requests, datetime
 __author__ = 'krisgesling'
 LOGGER = LOG(__name__)
 
-# TODO fix intent clashes / testing problems...
-# TODO add new scrape for movie blurb
+# TODO handle which movie?
 
 class DeckchairCinema(MycroftSkill):
     def __init__(self):
@@ -65,12 +64,11 @@ class DeckchairCinema(MycroftSkill):
                     'movieDetails': movieDetailsDialog
                     })
 
-                # 6. Setup context and data for follow up questions
+                # 6. Fetch data and set context for follow up questions
                 contextStr = ""
                 for movie in moviesOnDate:
                     movieDetails = self.__fetchMovieDetails(movie)
-                    # LOG.info(movieDetails)
-                    self.__addMovieDetailsToDict(movie)
+                    self.__movieDict[movieDetails['title']] = movieDetails
                     # if multiple movies, concatenate with unique delimiter
                     if len(contextStr)>0:
                         contextStr+="~~:and:~~"
@@ -96,18 +94,42 @@ class DeckchairCinema(MycroftSkill):
             self.speak_dialog('error')
 
     @intent_handler(IntentBuilder('MovieRatingIntent')
-        .require('MovieTitle')
-        .require('rating')
-        .build())
+        .require('MovieTitle').require('rating').build())
     def handle_movie_rating(self, message):
         self.__handleMovieDetailsResponse(message, 'rating')
 
     @intent_handler(IntentBuilder('MovieLengthIntent')
-        .require('MovieTitle')
-        .require('length')
-        .build())
+        .require('MovieTitle').require('length').build())
     def handle_movie_length(self, message):
         self.__handleMovieDetailsResponse(message, 'length')
+
+    @intent_handler(IntentBuilder('MovieDirectorIntent')
+        .require('MovieTitle').require('director').build())
+    def handle_movie_director(self, message):
+        self.__handleMovieDetailsResponse(message, 'director')
+
+    @intent_handler(IntentBuilder('MovieSynopsisIntent')
+        .require('MovieTitle').require('synopsis').build())
+    def handle_movie_synopsis(self, message):
+        self.__handleMovieDetailsResponse(message, 'synopsis')
+
+    @intent_handler(IntentBuilder('MovieYearIntent')
+        .require('MovieTitle').require('year').build())
+    def handle_movie_year(self, message):
+        self.__handleMovieDetailsResponse(message, 'year')
+
+    @intent_handler(IntentBuilder('MovieCountryIntent')
+        .require('MovieTitle').require('country').build())
+    def handle_movie_country(self, message):
+        self.__handleMovieDetailsResponse(message, 'country')
+
+    @intent_handler(IntentBuilder('MovieLanguageIntent')
+        .require('MovieTitle').require('language').build())
+    def handle_movie_language(self, message):
+        self.__handleMovieDetailsResponse(message, 'language')
+
+
+
 
     def stop(self):
         pass
@@ -118,20 +140,6 @@ class DeckchairCinema(MycroftSkill):
             return self.__addMovieFromDate(row.getnext(), moviesOnDate)
         else:
             return moviesOnDate
-
-    def __addMovieDetailsToDict(self, movie):
-        # TODO Separate getting details from assigning to dict
-        movieTitle = movie.getchildren()[0].getchildren()[0].text
-        self.__movieDict[movieTitle] = {
-            'length': self.__convertLengthStr(movie.getchildren()[2].text[0:-1]),
-            'rating': movie.getchildren()[3].text,
-            'screeningLocation': movie.getchildren()[4].text,
-            # Additional options in [5].getchildren() are:
-                # [film details via linked page,
-                #  youtube trailer link,
-                #  buy tickets link,
-                #  ical calendar item link]
-        }
 
     def __convertLengthStr(self, string):
         # TODO Fix instance of 1 hour.
