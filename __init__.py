@@ -144,17 +144,30 @@ class DeckchairCinema(MycroftSkill):
 
     def __fetchMovieDetails(self, movie):
         # Fetch extra movie data from dedicated webpage
-        moviePage = requests.get(movie.getchildren()[5].getchildren()[0].get('href'))
+        moviePage = requests.get(
+            movie.getchildren()[5].getchildren()[0].get('href'))
         movieData = html.fromstring(moviePage.content)
-        synopsisEl = movieData.xpath('//div[@id="main_content"]/div[@class="container"]/div[@class="row"]/div[@class="span8"]/div[@class="content"]/p')
+        synopsisEl = movieData.xpath(
+            '//div[@id="main_content"]/div[@class="container"]'
+            +'/div[@class="row"]/div[@class="span8"]'
+            +'/div[@class="content"]/p')
         # Sometimes they put a span tag around the synopsis text...
-        synopsis = synopsisEl[0].text if synopsisEl[0].text else synopsisEl[0].getchildren()[0].text
-        # rightPanel = movieData.xpath('//div[@id="main_content"]/div[@class="container"]/div[@class="row"]/div[@class="span4"]')
-        # LOG.info(len(rightPanel))
-        # directorRow = next(iter([ x for x in rightPanel
-        #     if x.text=="Director"
-        # ]), None)
-        # LOG.info(directorRow)
+        synopsis = (
+            synopsisEl[0].text if synopsisEl[0].text
+            else synopsisEl[0].getchildren()[0].text)
+        # Remaining details in relatively consistent locations on right side.
+        rightPanel = movieData.xpath(
+            '//div[@id="main_content"]/div[@class="container"]'
+            +'/div[@class="row"]/div[@class="span4"]')[0]
+        def getInfo(info):
+            # Find element containing info as heading, then return next element
+            heading = next(iter([ x for x in rightPanel
+                if x.text==info
+            ]), None)
+            return (heading.getnext().text if heading.getnext().text
+                else heading.getnext().getchildren().text)
+
+        # Construct return object
         movieDetails = {
             # First details from program page
             'title': movie.getchildren()[0].getchildren()[0].text,
@@ -163,6 +176,13 @@ class DeckchairCinema(MycroftSkill):
             'screeningLocation': movie.getchildren()[4].text,
             # Remaining from movieData
             'synopsis': synopsis,
+            'director': getInfo('Director'),
+            'year': getInfo('Year'),
+            'country': getInfo('Country of Origin'),
+            'language': getInfo('Language'),
+            # TODO when else is this movie showing? / Is this showing again?
+            # Could compare 'showtimes' to current date and see if a future
+            # showing is taking place...
         }
         return movieDetails
 
