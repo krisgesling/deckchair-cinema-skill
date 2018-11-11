@@ -4,7 +4,7 @@ from mycroft import MycroftSkill, intent_file_handler, intent_handler
 from mycroft.skills.context import adds_context, removes_context
 from mycroft.util.log import LOG
 from mycroft.util.format import nice_date, nice_time
-from mycroft.util.parse import extract_datetime
+from mycroft.util.parse import extract_datetime, extract_number, fuzzy_match
 import requests, datetime
 
 __author__ = 'krisgesling'
@@ -15,7 +15,9 @@ LOGGER = LOG(__name__)
 class DeckchairCinema(MycroftSkill):
     def __init__(self):
         MycroftSkill.__init__(self)
+        self.__currentContextTitles = []
         self.__movieDict = {}
+        self.__previousRequest = ''
 
     @intent_file_handler('cinema.deckchair.intent')
     def handle_cinema_deckchair(self, message):
@@ -65,15 +67,15 @@ class DeckchairCinema(MycroftSkill):
                     })
 
                 # 6. Fetch data and set context for follow up questions
-                contextStr = ""
+                self.__currentContextTitles = []
                 for movie in moviesOnDate:
                     movieDetails = self.__fetchMovieDetails(movie)
                     self.__movieDict[movieDetails['title']] = movieDetails
-                    # if multiple movies, concatenate with unique delimiter
-                    if len(contextStr)>0:
-                        contextStr+="~~:and:~~"
-                    contextStr+=movie.getchildren()[0].getchildren()[0].text
-                self.set_context('MovieTitle', contextStr)
+                    # Add titles to list, rather than concat into context str
+                    self.__currentContextTitles.append(
+                        movie.getchildren()[0].getchildren()[0].text
+                    )
+                self.set_context('MovieTitle', '~~True~~')
 
             else:
                 self.speak_dialog('error.daterange', {
@@ -92,6 +94,12 @@ class DeckchairCinema(MycroftSkill):
         except Exception as e:
             LOG.error("Error: {0}".format(e))
             self.speak_dialog('error')
+
+    """ Handle all follow up questions
+        Each intent_handler requires:
+        - MovieTitle (string): the context string
+        - detail (vocab): detected speech located in vocab/en-us/*.voc
+    """
 
     @intent_handler(IntentBuilder('MovieRatingIntent')
         .require('MovieTitle').require('rating').build())
@@ -128,8 +136,54 @@ class DeckchairCinema(MycroftSkill):
     def handle_movie_language(self, message):
         self.__handleMovieDetailsResponse(message, 'language')
 
+    def __handleMovieDetailsResponse(self, message, detail):
+        """ Common function for follow up intent_handlers
+            Args:
+            - message (object): incoming from messagebus
+            - detail (string): type of detail requested [country, rating, etc]
+        """
+        movieTitle = message.data.get('MovieTitle')
+        if len(self.__currentContextTitles) > 1 and movieTitle == '~~True~~':
+            whichMovieDialog = 'Which movie did you mean, '
+            joinStr = ', or, '
+            for title in self.__currentContextTitles:
+                whichMovieDialog+=title+joinStr
+            whichMovieDialog = whichMovieDialog[:-len(joinStr)]+'?'
 
 
+
+            def validator(self, utterance):
+                LOG.info('VALIDATOR')
+                LOG.info(utterance)
+                return utterance != "duck"
+            def on_fail(utterance):
+                LOG.info('ON_FAIL')
+                LOG.info(utterance)
+                return "What is happening?"
+            selectedMovie = self.get_response(
+                dialog=whichMovieDialog,
+                # data=None,
+                # validator=validator,
+                # num_retries=2,
+                # on_fail=on_fail
+                )
+            LOG.info('MOVIE SELECTED')
+            LOG.info(selectedMovie)
+            testingOverride = (selectedMovie if selectedMovie
+                else self.__currentContextTitles[1])
+            title=testingOverride
+            self.set_context('MovieTitle', testingOverride)
+            # self.set_context('MovieTitle', selectedMovie)
+
+
+        else:
+            title = self.__currentContextTitles[0]
+
+        LOG.info(title)
+        return self.speak_dialog('movie.'+detail, {
+            'title': title,
+            detail: self.__movieDict[title][detail],
+            })
 
     def stop(self):
         pass
@@ -218,17 +272,6 @@ class DeckchairCinema(MycroftSkill):
         dateText = getLastDateRow(trList[len(trList)-1])
         return self.__getDateFromStr(dateText)
 
-    def __handleMovieDetailsResponse(self, message, detail):
-        movieTitle = message.data.get('MovieTitle')
-        if "~~:and:~~" in movieTitle:
-            movieTitles = movieTitle.split("~~:and:~~")
-        else:
-            movieTitles = [movieTitle]
-        for title in movieTitles:
-            self.speak_dialog('movie.'+detail, {
-                'title': title,
-                detail: self.__movieDict[title][detail],
-                })
 
 def create_skill():
     return DeckchairCinema()
