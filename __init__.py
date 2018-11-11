@@ -4,7 +4,7 @@ from mycroft import MycroftSkill, intent_file_handler, intent_handler
 from mycroft.skills.context import adds_context, removes_context
 from mycroft.util.log import LOG
 from mycroft.util.format import nice_date, nice_time
-from mycroft.util.parse import extract_datetime, extract_number, fuzzy_match
+from mycroft.util.parse import extract_datetime, extract_number, match_one
 import requests, datetime
 
 __author__ = 'krisgesling'
@@ -78,6 +78,7 @@ class DeckchairCinema(MycroftSkill):
                 self.set_context('MovieTitle', '~~True~~')
 
             else:
+                # If date is not in the range of the current film program
                 self.speak_dialog('error.daterange', {
                     'when': nice_date(when, now=datetime.datetime.now()),
                     'firstDate': nice_date(firstDate, now=datetime.datetime.now()),
@@ -150,36 +151,31 @@ class DeckchairCinema(MycroftSkill):
                 whichMovieDialog+=title+joinStr
             whichMovieDialog = whichMovieDialog[:-len(joinStr)]+'?'
 
-
-
-            def validator(self, utterance):
-                LOG.info('VALIDATOR')
-                LOG.info(utterance)
-                return utterance != "duck"
+            def validator(utterance):
+                # test utterance against titles on current day
+                # TODO add extract_number to catch "first one" etc
+                return match_one(utterance,
+                    self.__currentContextTitles)[1] > 0.5
             def on_fail(utterance):
-                LOG.info('ON_FAIL')
-                LOG.info(utterance)
-                return "What is happening?"
-            selectedMovie = self.get_response(
+                return "Sorry I didn't catch that. "+whichMovieDialog
+            userResponse = self.get_response(
                 dialog=whichMovieDialog,
-                # data=None,
-                # validator=validator,
-                # num_retries=2,
-                # on_fail=on_fail
+                validator=validator,
+                num_retries=2,
+                on_fail=on_fail
                 )
-            LOG.info('MOVIE SELECTED')
-            LOG.info(selectedMovie)
-            testingOverride = (selectedMovie if selectedMovie
-                else self.__currentContextTitles[1])
-            title=testingOverride
-            self.set_context('MovieTitle', testingOverride)
-            # self.set_context('MovieTitle', selectedMovie)
-
-
+            selectedMovie = match_one(userResponse,
+                self.__currentContextTitles)[0]
+            title = selectedMovie
+            # Set it as context to create default for future questions
+            # Leave __currentContextTitles to enable user to switch.
+            self.set_context('MovieTitle', selectedMovie)
         else:
-            title = self.__currentContextTitles[0]
+            # if context explicitly set by get_response, use that
+            # else there should only be one title in __currentContextTitles
+            title = (movieTitle if self.__movieDict[movieTitle]
+                     else self.__currentContextTitles[0])
 
-        LOG.info(title)
         return self.speak_dialog('movie.'+detail, {
             'title': title,
             detail: self.__movieDict[title][detail],
