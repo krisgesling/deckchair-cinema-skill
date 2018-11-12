@@ -15,6 +15,7 @@ LOGGER = LOG(__name__)
 class DeckchairCinema(MycroftSkill):
     def __init__(self):
         MycroftSkill.__init__(self)
+        self.__activeTitle = ''
         self.__currentContextTitles = []
         self.__movieDict = {}
         self.__previousRequest = ''
@@ -143,8 +144,9 @@ class DeckchairCinema(MycroftSkill):
             - message (object): incoming from messagebus
             - detail (string): type of detail requested [country, rating, etc]
         """
-        movieTitle = message.data.get('MovieTitle')
-        if len(self.__currentContextTitles) > 1 and movieTitle == '~~True~~':
+        # If multiple movies and none selected as active, user must choose one
+        if len(self.__currentContextTitles) > 1 and self.__activeTitle == '':
+            # Construct question of all current movie titles
             whichMovieDialog = 'Which movie did you mean, '
             joinStr = ', or, '
             for title in self.__currentContextTitles:
@@ -153,7 +155,7 @@ class DeckchairCinema(MycroftSkill):
 
             def validator(utterance):
                 # test utterance against titles on current day
-                # TODO add extract_number to catch "first one" etc
+                # TODO use extract_number to catch "first one" etc
                 return match_one(utterance,
                     self.__currentContextTitles)[1] > 0.5
             def on_fail(utterance):
@@ -164,16 +166,14 @@ class DeckchairCinema(MycroftSkill):
                 num_retries=2,
                 on_fail=on_fail
                 )
-            selectedMovie = match_one(userResponse,
-                self.__currentContextTitles)[0]
-            title = selectedMovie
-            # Set it as context to create default for future questions
+            title = match_one(userResponse, self.__currentContextTitles)[0]
+            # Set the activeTitle to create default for future questions
             # Leave __currentContextTitles to enable user to switch.
-            self.set_context('MovieTitle', selectedMovie)
+            self.__activeTitle = title
         else:
             # if context explicitly set by get_response, use that
             # else there should only be one title in __currentContextTitles
-            title = (movieTitle if self.__movieDict[movieTitle]
+            title = (self.__activeTitle if self.__movieDict[self.__activeTitle]
                      else self.__currentContextTitles[0])
 
         return self.speak_dialog('movie.'+detail, {
