@@ -68,7 +68,9 @@ class DeckchairCinema(MycroftSkill):
                     })
 
                 # 6. Fetch data and set context for follow up questions
+                # Reset data from previous requests.
                 self.__currentContextTitles = []
+                self.__activeTitle = ''
                 for movie in moviesOnDate:
                     movieDetails = self.__fetchMovieDetails(movie)
                     self.__movieDict[movieDetails['title']] = movieDetails
@@ -144,6 +146,8 @@ class DeckchairCinema(MycroftSkill):
             - message (object): incoming from messagebus
             - detail (string): type of detail requested [country, rating, etc]
         """
+        # TODO consider making this a function that is run by get_response with data passed in.
+        # TODO Move dialog to dialog files for consistency and localizability
         # If multiple movies and none selected as active, user must choose one
         if len(self.__currentContextTitles) > 1 and self.__activeTitle == '':
             # Construct question of all current movie titles
@@ -153,11 +157,30 @@ class DeckchairCinema(MycroftSkill):
                 whichMovieDialog+=title+joinStr
             whichMovieDialog = whichMovieDialog[:-len(joinStr)]+'?'
 
+            def getUserSelection(utterance):
+                # TODO consider making this reusable, add 'options' param
+                if not utterance:
+                    return False
+                # get best match that is > 50% correct
+                matched = match_one(utterance, self.__currentContextTitles)
+                if  matched[1] > 0.5:
+                    return matched[0]
+                # get position based responses eg "first one"
+                # TODO fix "second" resolves to "ii" which is not parsed as a number
+                num = int(extract_number(utterance, ordinals=True))
+                LOG.info('NUMBER EXTRACTION')
+                LOG.info(num)
+                if (0 < num <= len(self.__currentContextTitles)):
+                    LOG.info(self.__currentContextTitles[num-1])
+                    return self.__currentContextTitles[num-1]
+                else:
+                    return False
+
             def validator(utterance):
-                # test utterance against titles on current day
-                # TODO use extract_number to catch "first one" etc
-                return match_one(utterance,
-                    self.__currentContextTitles)[1] > 0.5
+                if getUserSelection(utterance):
+                    return True
+                else:
+                    return False
             def on_fail(utterance):
                 return "Sorry I didn't catch that. "+whichMovieDialog
             userResponse = self.get_response(
@@ -166,15 +189,18 @@ class DeckchairCinema(MycroftSkill):
                 num_retries=2,
                 on_fail=on_fail
                 )
-            title = match_one(userResponse, self.__currentContextTitles)[0]
-            # Set the activeTitle to create default for future questions
-            # Leave __currentContextTitles to enable user to switch.
-            self.__activeTitle = title
-        else:
-            # if context explicitly set by get_response, use that
-            # else there should only be one title in __currentContextTitles
-            title = (self.__activeTitle if self.__movieDict[self.__activeTitle]
-                     else self.__currentContextTitles[0])
+            if userResponse:
+                title = getUserSelection(userResponse)
+                # Set the activeTitle to create default for future questions
+                # Leave __currentContextTitles to enable user to switch.
+                self.__activeTitle = title
+            else:
+                self.speak_dialog('error.no.selection')
+
+        # if context explicitly set by get_response, use that
+        # else there should only be one title in __currentContextTitles
+        title = (self.__activeTitle if self.__movieDict[self.__activeTitle]
+                 else self.__currentContextTitles[0])
 
         return self.speak_dialog('movie.'+detail, {
             'title': title,
