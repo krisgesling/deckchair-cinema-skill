@@ -20,7 +20,7 @@ class DeckchairCinema(MycroftSkill):
         self._movieDict = {}
         self._previousRequest = ''
 
-    @intent_file_handler('cinema.deckchair.intent')
+    @intent_file_handler('whats.on.intent')
     def handle_cinema_deckchair(self, message):
         try:
             # 1. Extract date, or default to today
@@ -62,7 +62,7 @@ class DeckchairCinema(MycroftSkill):
                         )
                     movieDetailsDialog+=movieTitle+", at "+nice_time(movieTime)
 
-                self.speak_dialog('cinema.deckchair', {
+                self.speak_dialog('whats.on', {
                     'when': nice_date(when, now=datetime.datetime.now()),
                     'movieDetails': movieDetailsDialog
                     })
