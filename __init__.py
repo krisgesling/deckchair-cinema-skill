@@ -15,10 +15,10 @@ LOGGER = LOG(__name__)
 class DeckchairCinema(MycroftSkill):
     def __init__(self):
         MycroftSkill.__init__(self)
-        self.__activeTitle = ''
-        self.__currentContextTitles = []
-        self.__movieDict = {}
-        self.__previousRequest = ''
+        self._activeTitle = ''
+        self._currentContextTitles = []
+        self._movieDict = {}
+        self._previousRequest = ''
 
     @intent_file_handler('cinema.deckchair.intent')
     def handle_cinema_deckchair(self, message):
@@ -40,14 +40,14 @@ class DeckchairCinema(MycroftSkill):
             ]), None)
 
             # 3. Test if date is in deckchair program range
-            firstDate = self.__getFirstDate(trList)
-            lastDate = self.__getLastDate(trList)
+            firstDate = self._getFirstDate(trList)
+            lastDate = self._getLastDate(trList)
             # TODO add timezone info to first and last date instead of remove from when
             isDateInRange = firstDate <= when.replace(tzinfo=None) <= lastDate
 
             if isDateInRange:
                 # 4. Add all film rows that follow a date row to a list
-                moviesOnDate = self.__addMovieFromDate(dateRow, moviesOnDate=[])
+                moviesOnDate = self._addMovieFromDate(dateRow, moviesOnDate=[])
                 # 5. Construct message to return
                 movieDetailsDialog = ""
                 for movie in moviesOnDate:
@@ -69,13 +69,13 @@ class DeckchairCinema(MycroftSkill):
 
                 # 6. Fetch data and set context for follow up questions
                 # Reset data from previous requests.
-                self.__currentContextTitles = []
-                self.__activeTitle = ''
+                self._currentContextTitles = []
+                self._activeTitle = ''
                 for movie in moviesOnDate:
-                    movieDetails = self.__fetchMovieDetails(movie)
-                    self.__movieDict[movieDetails['title']] = movieDetails
+                    movieDetails = self._fetchMovieDetails(movie)
+                    self._movieDict[movieDetails['title']] = movieDetails
                     # Add titles to list, rather than concat into context str
-                    self.__currentContextTitles.append(
+                    self._currentContextTitles.append(
                         movie.getchildren()[0].getchildren()[0].text
                     )
                 self.set_context('MovieTitle', '~~True~~')
@@ -108,39 +108,39 @@ class DeckchairCinema(MycroftSkill):
     @intent_handler(IntentBuilder('MovieRatingIntent')
         .require('MovieTitle').require('rating').build())
     def handle_movie_rating(self, message):
-        self.__handleMovieDetailsResponse(message, 'rating')
+        self._handleMovieDetailsResponse(message, 'rating')
 
     @intent_handler(IntentBuilder('MovieLengthIntent')
         .require('MovieTitle').require('length').build())
     def handle_movie_length(self, message):
-        self.__handleMovieDetailsResponse(message, 'length')
+        self._handleMovieDetailsResponse(message, 'length')
 
     @intent_handler(IntentBuilder('MovieDirectorIntent')
         .require('MovieTitle').require('director').build())
     def handle_movie_director(self, message):
-        self.__handleMovieDetailsResponse(message, 'director')
+        self._handleMovieDetailsResponse(message, 'director')
 
     @intent_handler(IntentBuilder('MovieSynopsisIntent')
         .require('MovieTitle').require('synopsis').build())
     def handle_movie_synopsis(self, message):
-        self.__handleMovieDetailsResponse(message, 'synopsis')
+        self._handleMovieDetailsResponse(message, 'synopsis')
 
     @intent_handler(IntentBuilder('MovieYearIntent')
         .require('MovieTitle').require('year').build())
     def handle_movie_year(self, message):
-        self.__handleMovieDetailsResponse(message, 'year')
+        self._handleMovieDetailsResponse(message, 'year')
 
     @intent_handler(IntentBuilder('MovieCountryIntent')
         .require('MovieTitle').require('country').build())
     def handle_movie_country(self, message):
-        self.__handleMovieDetailsResponse(message, 'country')
+        self._handleMovieDetailsResponse(message, 'country')
 
     @intent_handler(IntentBuilder('MovieLanguageIntent')
         .require('MovieTitle').require('language').build())
     def handle_movie_language(self, message):
-        self.__handleMovieDetailsResponse(message, 'language')
+        self._handleMovieDetailsResponse(message, 'language')
 
-    def __handleMovieDetailsResponse(self, message, detail):
+    def _handleMovieDetailsResponse(self, message, detail):
         """ Common function for follow up intent_handlers
             Args:
             - message (object): incoming from messagebus
@@ -149,11 +149,11 @@ class DeckchairCinema(MycroftSkill):
         # TODO consider making this a function that is run by get_response with data passed in.
         # TODO Move dialog to dialog files for consistency and localizability
         # If multiple movies and none selected as active, user must choose one
-        if len(self.__currentContextTitles) > 1 and self.__activeTitle == '':
+        if len(self._currentContextTitles) > 1 and self._activeTitle == '':
             # Construct question of all current movie titles
             whichMovieDialog = 'Which movie did you mean, '
             joinStr = ', or, '
-            for title in self.__currentContextTitles:
+            for title in self._currentContextTitles:
                 whichMovieDialog+=title+joinStr
             whichMovieDialog = whichMovieDialog[:-len(joinStr)]+'?'
 
@@ -162,7 +162,7 @@ class DeckchairCinema(MycroftSkill):
                 if not utterance:
                     return False
                 # get best match that is > 50% correct
-                matched = match_one(utterance, self.__currentContextTitles)
+                matched = match_one(utterance, self._currentContextTitles)
                 if  matched[1] > 0.5:
                     return matched[0]
                 # get position based responses eg "first one"
@@ -170,9 +170,9 @@ class DeckchairCinema(MycroftSkill):
                 num = int(extract_number(utterance, ordinals=True))
                 LOG.info('NUMBER EXTRACTION')
                 LOG.info(num)
-                if (0 < num <= len(self.__currentContextTitles)):
-                    LOG.info(self.__currentContextTitles[num-1])
-                    return self.__currentContextTitles[num-1]
+                if (0 < num <= len(self._currentContextTitles)):
+                    LOG.info(self._currentContextTitles[num-1])
+                    return self._currentContextTitles[num-1]
                 else:
                     return False
 
@@ -192,32 +192,32 @@ class DeckchairCinema(MycroftSkill):
             if userResponse:
                 title = getUserSelection(userResponse)
                 # Set the activeTitle to create default for future questions
-                # Leave __currentContextTitles to enable user to switch.
-                self.__activeTitle = title
+                # Leave _currentContextTitles to enable user to switch.
+                self._activeTitle = title
             else:
                 self.speak_dialog('error.no.selection')
 
         # if context explicitly set by get_response, use that
-        # else there should only be one title in __currentContextTitles
-        title = (self.__activeTitle if self.__movieDict[self.__activeTitle]
-                 else self.__currentContextTitles[0])
+        # else there should only be one title in _currentContextTitles
+        title = (self._activeTitle if self._movieDict[self._activeTitle]
+                 else self._currentContextTitles[0])
 
         return self.speak_dialog('movie.'+detail, {
             'title': title,
-            detail: self.__movieDict[title][detail],
+            detail: self._movieDict[title][detail],
             })
 
     def stop(self):
         pass
 
-    def __addMovieFromDate(self, row, moviesOnDate=[]):
+    def _addMovieFromDate(self, row, moviesOnDate=[]):
         if row.getnext().getchildren()[0].get("class") == "program-film":
             moviesOnDate.append(row.getnext())
-            return self.__addMovieFromDate(row.getnext(), moviesOnDate)
+            return self._addMovieFromDate(row.getnext(), moviesOnDate)
         else:
             return moviesOnDate
 
-    def __convertLengthStr(self, string):
+    def _convertLengthStr(self, string):
         # TODO Fix instance of 1 hour.
         # Convert movie length from "122m" to "2 hours and 2 minutes"
         lengthInMinutes = string
@@ -226,7 +226,7 @@ class DeckchairCinema(MycroftSkill):
             lengthForSpeaking += " and " + str(int(lengthInMinutes) % 60) + " minutes"
         return lengthForSpeaking
 
-    def __fetchMovieDetails(self, movie):
+    def _fetchMovieDetails(self, movie):
         # Fetch extra movie data from dedicated webpage
         moviePage = requests.get(
             movie.getchildren()[5].getchildren()[0].get('href'))
@@ -255,7 +255,7 @@ class DeckchairCinema(MycroftSkill):
         movieDetails = {
             # First details from program page
             'title': movie.getchildren()[0].getchildren()[0].text,
-            'length': self.__convertLengthStr(movie.getchildren()[2].text[0:-1]),
+            'length': self._convertLengthStr(movie.getchildren()[2].text[0:-1]),
             'rating': movie.getchildren()[3].text,
             'screeningLocation': movie.getchildren()[4].text,
             # Remaining from movieData
@@ -270,11 +270,11 @@ class DeckchairCinema(MycroftSkill):
         }
         return movieDetails
 
-    def __getDateFromStr(self, string):
+    def _getDateFromStr(self, string):
         year = str(datetime.datetime.now().year)
         return datetime.datetime.strptime(string+" "+year, "%A %d %B %Y")
 
-    def __getFirstDate(self, trList):
+    def _getFirstDate(self, trList):
         # Recursive function to return first date row of program
         def getFirstDateRow(row):
             if row.getchildren()[0].get("class") == "program-date":
@@ -282,9 +282,9 @@ class DeckchairCinema(MycroftSkill):
             else:
                 return getFirstDateRow(row.getnext())
         dateText = getFirstDateRow(trList[0])
-        return self.__getDateFromStr(dateText)
+        return self._getDateFromStr(dateText)
 
-    def __getLastDate(self, trList):
+    def _getLastDate(self, trList):
         # Recursive function to return last date row of program
         def getLastDateRow(row):
             if row.getchildren()[0].get("class") == "program-date":
@@ -292,7 +292,7 @@ class DeckchairCinema(MycroftSkill):
             else:
                 return getLastDateRow(row.getprevious())
         dateText = getLastDateRow(trList[len(trList)-1])
-        return self.__getDateFromStr(dateText)
+        return self._getDateFromStr(dateText)
 
 
 def create_skill():
