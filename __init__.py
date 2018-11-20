@@ -10,8 +10,6 @@ import requests, datetime
 __author__ = 'krisgesling'
 LOGGER = LOG(__name__)
 
-# TODO handle which movie?
-
 class DeckchairCinema(MycroftSkill):
     def __init__(self):
         MycroftSkill.__init__(self)
@@ -83,10 +81,11 @@ class DeckchairCinema(MycroftSkill):
 
             else:
                 # If date is not in the range of the current film program
+                nowDate = datetime.datetime.now()
                 self.speak_dialog('error.daterange', {
-                    'when': nice_date(when, now=datetime.datetime.now()),
-                    'firstDate': nice_date(firstDate, now=datetime.datetime.now()),
-                    'lastDate': nice_date(lastDate, now=datetime.datetime.now())
+                    'when': nice_date(when, nowDate),
+                    'firstDate': nice_date(firstDate, nowDate),
+                    'lastDate': nice_date(lastDate, nowDate)
                     })
 
         except ( requests.exceptions.ConnectionError
@@ -147,7 +146,8 @@ class DeckchairCinema(MycroftSkill):
             - message (object): incoming from messagebus
             - detail (string): type of detail requested [country, rating, etc]
         """
-        # TODO consider making this a function that is run by get_response with data passed in.
+        # TODO consider making this a function
+        # that is run by get_response with data passed in.
         # TODO Move dialog to dialog files for consistency and localizability
         # If multiple movies and none selected as active, user must choose one
         if len(self._currentContextTitles) > 1 and self._activeTitle == '':
@@ -190,13 +190,11 @@ class DeckchairCinema(MycroftSkill):
             if userResponse:
                 title = getUserSelection(userResponse)
                 # Set the activeTitle to create default for future questions
-                # Leave _currentContextTitles to enable user to switch.
                 self._activeTitle = title
             else:
                 self.speak_dialog('error.no.selection')
 
-        # if context explicitly set by get_response, use that
-        # else there should only be one title in _currentContextTitles
+        # use activeTitle else there should be only one _currentContextTitles
         title = (self._activeTitle if self._movieDict[self._activeTitle]
                  else self._currentContextTitles[0])
 
@@ -273,6 +271,7 @@ class DeckchairCinema(MycroftSkill):
         return datetime.datetime.strptime(string+" "+year, "%A %d %B %Y")
 
     def _getFirstDate(self, trList):
+        #TODO Consider making generic getDate(self, trList, first/last)
         # Recursive function to return first date row of program
         def getFirstDateRow(row):
             if row.getchildren()[0].get("class") == "program-date":
