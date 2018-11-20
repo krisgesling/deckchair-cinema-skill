@@ -74,8 +74,6 @@ class DeckchairCinema(MycroftSkill):
                 self._activeTitle = ''
                 for movie in moviesOnDate:
                     movieDetails = self._fetchMovieDetails(movie)
-                    LOG.info("MOVIE DETAILS")
-                    log.info(movieDetails)
                     self._movieDict[movieDetails['title']] = movieDetails
                     # Add titles to list, rather than concat into context str
                     self._currentContextTitles.append(
@@ -160,22 +158,19 @@ class DeckchairCinema(MycroftSkill):
                 whichMovieDialog+=title+joinStr
             whichMovieDialog = whichMovieDialog[:-len(joinStr)]+'?'
 
-            def getUserSelection(utterance):
+            def getUserSelection(utterance, options=self._currentContextTitles):
                 # TODO consider making this reusable, add 'options' param
                 if not utterance:
                     return False
                 # get best match that is > 50% correct
-                matched = match_one(utterance, self._currentContextTitles)
+                matched = match_one(utterance, options)
                 if  matched[1] > 0.5:
                     return matched[0]
-                # get position based responses eg "first one"
-                # TODO fix "second" resolves to "ii" which is not parsed as a number
+                # get position based responses eg "second"
+                # NB: mycroft-core issue #1877 "second one" returns 1
                 num = int(extract_number(utterance, ordinals=True))
-                LOG.info('NUMBER EXTRACTION')
-                LOG.info(num)
-                if (0 < num <= len(self._currentContextTitles)):
-                    LOG.info(self._currentContextTitles[num-1])
-                    return self._currentContextTitles[num-1]
+                if (0 < num <= len(options)):
+                    return options[num-1]
                 else:
                     return False
 
@@ -231,13 +226,9 @@ class DeckchairCinema(MycroftSkill):
 
     def _fetchMovieDetails(self, movie):
         # Fetch extra movie data from dedicated webpage
-        LOG.info("FETCHING MOVIE DETAILS FROM:")
-        LOG.info(movie.getchildren()[5].getchildren()[0].get('href'))
         moviePage = requests.get(
             movie.getchildren()[5].getchildren()[0].get('href'))
-        LOG.info(moviePage)
         movieData = html.fromstring(moviePage.content)
-        LOG.info(movieData)
         synopsisEl = movieData.xpath(
             '//div[@id="main_content"]/div[@class="container"]'
             +'/div[@class="row"]/div[@class="span8"]'
