@@ -39,7 +39,7 @@ class DeckchairCinema(MycroftSkill):
             dateRow = next(iter([ x for x in trList
                 if x.getchildren()[0].text==when.strftime("%A %-d %B")
             ]), None)
-            
+
             # 3. Test if date is in deckchair program range
             firstDate = self._getFirstDate(trList)
             lastDate = self._getLastDate(trList)
@@ -74,6 +74,8 @@ class DeckchairCinema(MycroftSkill):
                 self._activeTitle = ''
                 for movie in moviesOnDate:
                     movieDetails = self._fetchMovieDetails(movie)
+                    LOG.info("MOVIE DETAILS")
+                    log.info(movieDetails)
                     self._movieDict[movieDetails['title']] = movieDetails
                     # Add titles to list, rather than concat into context str
                     self._currentContextTitles.append(
@@ -229,9 +231,13 @@ class DeckchairCinema(MycroftSkill):
 
     def _fetchMovieDetails(self, movie):
         # Fetch extra movie data from dedicated webpage
+        LOG.info("FETCHING MOVIE DETAILS FROM:")
+        LOG.info(movie.getchildren()[5].getchildren()[0].get('href'))
         moviePage = requests.get(
             movie.getchildren()[5].getchildren()[0].get('href'))
+        LOG.info(moviePage)
         movieData = html.fromstring(moviePage.content)
+        LOG.info(movieData)
         synopsisEl = movieData.xpath(
             '//div[@id="main_content"]/div[@class="container"]'
             +'/div[@class="row"]/div[@class="span8"]'
