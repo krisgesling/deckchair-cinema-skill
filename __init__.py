@@ -29,7 +29,8 @@ class DeckchairCinema(MycroftSkill):
                 message.data.get('utterance'), lang=self.lang)[0]
 
             # 2. Scrape website for movie on this date
-            webpage = requests.get('http://www.deckchaircinema.com/program/')
+            # webpage = requests.get('http://www.deckchaircinema.com/program/')
+            webpage = requests.get('https://krisgesling.github.io/deckchair-cinema-skill/')
             dataTree = html.fromstring(webpage.content)
             # Get list of table rows from program
             # - these alternate between date and movie[s]
@@ -38,7 +39,7 @@ class DeckchairCinema(MycroftSkill):
             dateRow = next(iter([ x for x in trList
                 if x.getchildren()[0].text==when.strftime("%A %-d %B")
             ]), None)
-
+            
             # 3. Test if date is in deckchair program range
             firstDate = self._getFirstDate(trList)
             lastDate = self._getLastDate(trList)
