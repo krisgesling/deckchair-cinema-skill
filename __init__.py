@@ -25,7 +25,8 @@ class DeckchairCinema(MycroftSkill):
             # Get a date from requests like "what's on at deckchair tomorrow"
             when = extract_datetime(
                 message.data.get('utterance'), lang=self.lang)[0]
-
+            when = datetime.datetime.strptime(
+                "Saturday 17 November 2018", "%A %d %B %Y")
             # 2. Scrape website for movie on this date
             # webpage = requests.get('http://www.deckchaircinema.com/program/')
             webpage = requests.get('https://krisgesling.github.io/deckchair-cinema-skill/')
