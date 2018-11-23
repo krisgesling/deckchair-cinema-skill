@@ -10,6 +10,8 @@ import requests, datetime
 __author__ = 'krisgesling'
 LOGGER = LOG(__name__)
 
+# TODO Add caching of program to reduce fetching on multiple queries
+
 class DeckchairCinema(MycroftSkill):
     def __init__(self):
         MycroftSkill.__init__(self)
@@ -33,12 +35,13 @@ class DeckchairCinema(MycroftSkill):
             dataTree = html.fromstring(webpage.content)
             # Get list of table rows from program
             # - these alternate between date and movie[s]
+            # TODO would this be better just fetching the whole tbody
+            # as one element? Can then utilise E.find()
+            # rather than next(iter([x for in if ]))
             trList = dataTree.xpath('//table[@id="program"]/tbody/tr')
             # Find child with provided date in format "Monday 22 October"
-            dateRow = next(iter([ x for x in trList
-                if x.getchildren()[0].text==when.strftime("%A %-d %B")
-            ]), None)
-
+            dateRow = next(( x for x in trList
+                if x.getchildren()[0].text==when.strftime("%A %-d %B")))
             # 3. Test if date is in deckchair program range
             firstDate = self._getFirstDate(trList)
             lastDate = self._getLastDate(trList)
