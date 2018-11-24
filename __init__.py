@@ -20,7 +20,7 @@ class DeckchairCinema(MycroftSkill):
     def __init__(self):
         MycroftSkill.__init__(self)
         self._active_title = ''
-        self._current_context_titles = []
+        self._current_titles = []
         self._movie_dict = {}
         self._previous_request = ''
 
@@ -33,7 +33,7 @@ class DeckchairCinema(MycroftSkill):
             when = extract_datetime(
                 message.data.get('utterance'), lang=self.lang)[0]
             when = datetime.strptime(
-                "Saturday 17 November 2018", "%A %d %B %Y")
+                "Sunday 18 November 2018", "%A %d %B %Y")
             # 2. Scrape website for movie on this date
             # webpage = get('http://www.deckchaircinema.com/program/')
             webpage = get('https://krisgesling.github.io/deckchair-cinema-skill/')
@@ -76,13 +76,13 @@ class DeckchairCinema(MycroftSkill):
 
                 # 6. Fetch data and set context for follow up questions
                 # Reset data from previous requests.
-                self._current_context_titles = []
+                self._current_titles = []
                 self._active_title = ''
                 for movie in movies_on_date:
                     movie_details = self._fetch_movie_details(movie)
                     self._movie_dict[movie_details['title']] = movie_details
                     # Add titles to list, rather than concat into context str
-                    self._current_context_titles.append(
+                    self._current_titles.append(
                         movie.getchildren()[0].getchildren()[0].text
                     )
                 self.set_context('MovieTitle', 'True')
@@ -118,7 +118,7 @@ class DeckchairCinema(MycroftSkill):
         .require('MovieTitle').require('rating').build())
     def handle_movie_rating(self, message):
         LOG.info("Firing")
-        LOG.info(self._current_context_titles)
+        LOG.info(self._current_titles)
         self._handle_movie_details(message, 'rating')
 
     @intent_handler(IntentBuilder('MovieLengthIntent')
@@ -161,16 +161,15 @@ class DeckchairCinema(MycroftSkill):
         # that is run by get_response with data passed in.
         # TODO Move dialog to dialog files for consistency and localizability
         # If multiple movies and none selected as active, user must choose one
-        if len(self._current_context_titles) > 1 and self._active_title == '':
+        if len(self._current_titles) > 1 and self._active_title == '':
             # Construct question of all current movie titles
             which_movie_dialog = 'Which movie did you mean, '
             join_str = ', or, '
-            for title in self._current_context_titles:
+            for title in self._current_titles:
                 which_movie_dialog+=title+join_str
             which_movie_dialog = which_movie_dialog[:-len(join_str)]+'?'
 
-            def get_user_selection(
-                utterance, options=self._current_context_titles):
+            def get_user_selection(utterance, options=self._current_titles):
                 # TODO consider making this reusable, add 'options' param
                 if not utterance:
                     return False
@@ -206,9 +205,10 @@ class DeckchairCinema(MycroftSkill):
             else:
                 self.speak_dialog('error.no.selection')
 
-        # use activeTitle else there should be only one _current_context_titles
-        title = (self._active_title if self._movie_dict[self._active_title]
-                 else self._current_context_titles[0])
+        # use activeTitle else there should be only one _current_titles
+        title = self._active_title if self._active_title \
+                                   and self._movie_dict[self._active_title] \
+                else self._current_titles[0]
         return self.speak_dialog('movie.'+detail, {
             'title': title,
             detail: self._movie_dict[title][detail],
@@ -246,34 +246,31 @@ class DeckchairCinema(MycroftSkill):
 
     def _fetch_movie_details(self, movie):
         # Fetch extra movie data from dedicated webpage
-        movie_page = get(
-            movie.getchildren()[5].getchildren()[0].get('href'))
+        movie_page = get(movie.getchildren()[5].getchildren()[0].get('href'))
         movie_data = html.fromstring(movie_page.content)
         synopsis_element = movie_data.xpath(
             '//div[@id="main_content"]/div[@class="container"]'
-            +'/div[@class="row"]/div[@class="span8"]'
-            +'/div[@class="content"]/p')
+            + '/div[@class="row"]/div[@class="span8"]'
+            + '/div[@class="content"]/p')
         # Sometimes they put a span tag around the synopsis text...
-        synopsis = (synopsis_element[0].text if synopsis_element[0].text
-            else synopsis_element[0].getchildren()[0].text)
+        synopsis = synopsis_element[0].text if synopsis_element[0].text \
+                   else synopsis_element[0].getchildren()[0].text
         # Remaining details in relatively consistent locations on right side.
         right_panel = movie_data.xpath(
             '//div[@id="main_content"]/div[@class="container"]'
-            +'/div[@class="row"]/div[@class="span4"]')[0]
-        def get_info(info):
+            + '/div[@class="row"]/div[@class="span4"]')[0]
+        def get_info(info_type):
             # Find element containing info as heading, then return next element
-            # TODO convert to generator
-            heading = next(iter([ x for x in right_panel
-                if x.text==info
-            ]), None)
-            return (heading.getnext().text if heading.getnext().text
-                else heading.getnext().getchildren().text)
+            heading = next((x for x in right_panel if x.text==info_type))
+            info = heading.getnext().text if heading.getnext().text \
+                   else heading.getnext().getchildren().text
+            return info
 
         # Construct return object
         movie_details = {
             # First details from program page
             'title': movie.getchildren()[0].getchildren()[0].text,
-            'length': self._convert_length_str(movie.getchildren()[2].text[0:-1]),
+            'length': self._convert_length_str(movie.getchildren()[2].text),
             'rating': movie.getchildren()[3].text,
             'screening_location': movie.getchildren()[4].text,
             # Remaining from movie_data
@@ -291,7 +288,8 @@ class DeckchairCinema(MycroftSkill):
     @staticmethod
     def _get_date_from_str(string):
         year = str(datetime.now().year)
-        return datetime.strptime(string+" "+year, "%A %d %B %Y")
+        date = datetime.strptime(string+" "+year, "%A %d %B %Y")
+        return date
 
     def _get_first_date(self, tr_list):
         #TODO Consider making generic getDate(self, tr_list, first/last)
@@ -301,8 +299,8 @@ class DeckchairCinema(MycroftSkill):
                 return row.getchildren()[0].text
             else:
                 return get_first_date_row(row.getnext())
-        dateText = get_first_date_row(tr_list[0])
-        return self._get_date_from_str(dateText)
+        date_text = get_first_date_row(tr_list[0])
+        return self._get_date_from_str(date_text)
 
     def _get_last_date(self, tr_list):
         # Recursive function to return last date row of program
@@ -311,8 +309,8 @@ class DeckchairCinema(MycroftSkill):
                 return row.getchildren()[0].text
             else:
                 return get_last_date_row(row.getprevious())
-        dateText = get_last_date_row(tr_list[len(tr_list)-1])
-        return self._get_date_from_str(dateText)
+        date_text = get_last_date_row(tr_list[len(tr_list)-1])
+        return self._get_date_from_str(date_text)
 
 
 def create_skill():
