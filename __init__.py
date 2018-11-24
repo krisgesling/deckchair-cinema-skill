@@ -1,4 +1,4 @@
-from requests import exceptions, get
+import re
 from adapt.intent import IntentBuilder
 from datetime import datetime
 from lxml import html
@@ -7,6 +7,7 @@ from mycroft.skills.context import adds_context, removes_context
 from mycroft.util.format import nice_date, nice_time
 from mycroft.util.log import LOG
 from mycroft.util.parse import extract_datetime, extract_number, match_one
+from requests import exceptions, get
 
 
 __author__ = 'krisgesling'
@@ -223,14 +224,25 @@ class DeckchairCinema(MycroftSkill):
         else:
             return movies_on_date
 
-    def _convert_length_str(self, string):
-        # TODO Fix instance of 1 hour.
+    @staticmethod
+    def _convert_length_str(string):
         # Convert movie length from "122m" to "2 hours and 2 minutes"
-        length_in_mins = string
-        length_for_speaking = str(int(int(length_in_mins) / 60)) + " hours"
-        if (int(length_in_mins) % 60 > 0):
-            length_for_speaking += " and " + str(int(length_in_mins) % 60) + " minutes"
-        return length_for_speaking
+        assert re.match('\d+m', string), \
+            "Invalid string as argument: %r" % string
+        total_mins = int(string[0:-1])
+        assert total_mins > 0, "total_mins = %r" % total_mins
+        hrs = int(total_mins / 60)
+        if hrs == 0:
+            hrs_spoken = ""
+        elif hrs == 1:
+            hrs_spoken = str(hrs) + " hour"
+        else:
+            hrs_spoken = str(hrs) + " hours"
+        mins = total_mins % 60
+        conjoin = " and " if hrs > 0 and mins > 0 else ""
+        mins_spoken = str(mins) + " minutes" if (mins > 0) else ""
+        length_spoken = hrs_spoken + conjoin + mins_spoken
+        return length_spoken
 
     def _fetch_movie_details(self, movie):
         # Fetch extra movie data from dedicated webpage
