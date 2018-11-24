@@ -57,21 +57,21 @@ class DeckchairCinema(MycroftSkill):
                 movies_on_date = self._add_movie_from_date(
                     date_row, movies_on_date=[])
                 # 5. Construct message to return
-                movie_details_dialog = ""
+                movie_details_dialog = []
                 for movie in movies_on_date:
                     if len(movie_details_dialog) > 0:
-                        movie_details_dialog += ", and "
+                        movie_details_dialog.append(", and ")
                     movie_title = movie.getchildren()[0].getchildren()[0].text
-                    movie_time = when.replace(
+                    movie_time = nice_time(when.replace(
                         hour=int(movie.getchildren()[1].text[0:-5]),
                         minute=int(movie.getchildren()[1].text[-4:-2])
-                        )
-                    movie_details_dialog += (movie_title + ", at "
-                        + nice_time(movie_time))
+                        ))
+                    movie_details_dialog.append(movie_title + ", at "
+                        + movie_time)
 
                 self.speak_dialog('whats.on', {
                     'when': nice_date(when, now=datetime.now()),
-                    'movie_details': movie_details_dialog
+                    'movie_details': ''.join(movie_details_dialog)
                     })
 
                 # 6. Fetch data and set context for follow up questions
