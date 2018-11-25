@@ -34,7 +34,7 @@ class DeckchairCinemaSkill(MycroftSkill):
             when = extract_datetime(
                 message.data.get('utterance'), lang=self.lang)[0]
             when = datetime.strptime(
-                "Saturday 17 November 2018", "%A %d %B %Y")
+                'Sunday 18 November 2018', '%A %d %B %Y')
             # 2. Scrape website for movie on this date
             # webpage = get('http://www.deckchaircinema.com/program/')
             webpage = get('https://krisgesling.github.io/deckchair-cinema-skill/')
@@ -48,7 +48,7 @@ class DeckchairCinemaSkill(MycroftSkill):
             tr_list = data_tree.xpath('//table[@id="program"]/tbody/tr')
             # Find child with provided date in format "Monday 22 October"
             date_row = next(( x for x in tr_list
-                if x.getchildren()[0].text==when.strftime("%A %-d %B")))
+                if x.getchildren()[0].text==when.strftime('%A %-d %B')))
             # TODO what if date_row not found?
             # 3. Test if date is in deckchair program range
             first_date = self._get_first_date(tr_list)
@@ -63,13 +63,13 @@ class DeckchairCinemaSkill(MycroftSkill):
                 movie_details_dialog = []
                 for movie in movies_on_date:
                     if len(movie_details_dialog) > 0:
-                        movie_details_dialog.append(", and ")
+                        movie_details_dialog.append(', and ')
                     movie_title = movie.getchildren()[0].getchildren()[0].text
                     movie_time = nice_time(when.replace(
                         hour=int(movie.getchildren()[1].text[0:-5]),
                         minute=int(movie.getchildren()[1].text[-4:-2])))
                     movie_details_dialog.extend(
-                        [movie_title, ", at ", movie_time])
+                        [movie_title, ', at ', movie_time])
 
                 self.speak_dialog('whats.on', {
                     'when': nice_date(when, now=datetime.now()),
@@ -103,10 +103,10 @@ class DeckchairCinemaSkill(MycroftSkill):
             or exceptions.Timeout
             or exceptions.TooManyRedirects
             ) as e:
-            LOG.error("Error: {0}".format(e))
+            LOG.error('Error: {0}'.format(e))
             self.speak_dialog('error.http')
         except Exception as e:
-            LOG.exception("Error: {0}".format(e))
+            LOG.exception('Error: {0}'.format(e))
             self.speak_dialog('error')
 
 
@@ -194,7 +194,7 @@ class DeckchairCinemaSkill(MycroftSkill):
                 else:
                     return False
             def on_fail(utterance):
-                return "Sorry I didn't catch that. "+which_movie_dialog
+                return 'Sorry I didn\'t catch that. %s' % which_movie_dialog
             user_response = self.get_response(
                 dialog = which_movie_dialog,
                 validator = validator,
@@ -222,7 +222,7 @@ class DeckchairCinemaSkill(MycroftSkill):
 
     def _add_movie_from_date(self, row, movies_on_date = []):
         # Recursive function to add all movies on a given date
-        if row.getnext().getchildren()[0].get("class") == "program-film":
+        if row.getnext().getchildren()[0].get('class') == 'program-film':
             movies_on_date.append(row.getnext())
             return self._add_movie_from_date(row.getnext(), movies_on_date)
         else:
@@ -233,25 +233,25 @@ class DeckchairCinemaSkill(MycroftSkill):
         #TODO consider input as total_mins integer = more reusable
         """ Convert length of time to speakable string
             Arguments:
-            - string (string): in format "122m"
+            - string (string): in format '122m'
             Returns:
             - length_spoken (string): length of time as speakable dialog
-                                      eg "2 hours and 2 minutes"
+                                      eg '2 hours and 2 minutes'
         """
         assert re.match('\d+m', string), \
-            "Invalid string as argument: %r" % string
+            'Invalid string as argument: %r' % string
         total_mins = int(string[0:-1])
-        assert total_mins > 0, "total_mins = %r" % total_mins
+        assert total_mins > 0, 'total_mins = %r' % total_mins
         hrs = int(total_mins / 60)
         if hrs == 0:
-            hrs_spoken = ""
+            hrs_spoken = ''
         elif hrs == 1:
-            hrs_spoken = str(hrs) + " hour"
+            hrs_spoken = '%d hour' % hrs
         else:
-            hrs_spoken = str(hrs) + " hours"
+            hrs_spoken = '%d hours' % hrs
         mins = total_mins % 60
-        conjoin = " and " if hrs > 0 and mins > 0 else ""
-        mins_spoken = str(mins) + " minutes" if (mins > 0) else ""
+        conjoin = ' and ' if hrs > 0 and mins > 0 else ''
+        mins_spoken = str(mins) + ' minutes' if (mins > 0) else ''
         length_spoken = hrs_spoken + conjoin + mins_spoken
         return length_spoken
 
@@ -260,16 +260,16 @@ class DeckchairCinemaSkill(MycroftSkill):
         movie_page = get(movie.getchildren()[5].getchildren()[0].get('href'))
         movie_data = html.fromstring(movie_page.content)
         synopsis_element = movie_data.xpath(
-            '//div[@id="main_content"]/div[@class="container"]'
-            + '/div[@class="row"]/div[@class="span8"]'
-            + '/div[@class="content"]/p')
+            '//div[@id="main_content"]/div[@class="container"] \
+            /div[@class="row"]/div[@class="span8"] \
+            /div[@class="content"]/p')
         # Sometimes they put a span tag around the synopsis text...
         synopsis = synopsis_element[0].text if synopsis_element[0].text \
                    else synopsis_element[0].getchildren()[0].text
         # Remaining details in relatively consistent locations on right side.
         right_panel = movie_data.xpath(
-            '//div[@id="main_content"]/div[@class="container"]'
-            + '/div[@class="row"]/div[@class="span4"]')[0]
+            '//div[@id="main_content"]/div[@class="container"] \
+            /div[@class="row"]/div[@class="span4"]')[0]
 
         def get_info(info_type):
             # Find element containing info as heading, then return next element
