@@ -67,10 +67,9 @@ class DeckchairCinemaSkill(MycroftSkill):
                     movie_title = movie.getchildren()[0].getchildren()[0].text
                     movie_time = nice_time(when.replace(
                         hour=int(movie.getchildren()[1].text[0:-5]),
-                        minute=int(movie.getchildren()[1].text[-4:-2])
-                        ))
-                    movie_details_dialog.append(movie_title + ", at "
-                        + movie_time)
+                        minute=int(movie.getchildren()[1].text[-4:-2])))
+                    movie_details_dialog.extend(
+                        [movie_title, ", at ", movie_time])
 
                 self.speak_dialog('whats.on', {
                     'when': nice_date(when, now=datetime.now()),
@@ -197,10 +196,10 @@ class DeckchairCinemaSkill(MycroftSkill):
             def on_fail(utterance):
                 return "Sorry I didn't catch that. "+which_movie_dialog
             user_response = self.get_response(
-                dialog=which_movie_dialog,
-                validator=validator,
-                num_retries=2,
-                on_fail=on_fail
+                dialog = which_movie_dialog,
+                validator = validator,
+                num_retries = 2,
+                on_fail = on_fail
                 )
             if user_response:
                 title = get_user_selection(user_response)
@@ -213,7 +212,7 @@ class DeckchairCinemaSkill(MycroftSkill):
         title = self._active_title if self._active_title \
                                    and self._movie_dict[self._active_title] \
                 else self._current_titles[0]
-        return self.speak_dialog('movie.'+detail, {
+        return self.speak_dialog('movie.' + detail, {
             'title': title,
             detail: self._movie_dict[title][detail],
             })
@@ -221,7 +220,7 @@ class DeckchairCinemaSkill(MycroftSkill):
     def stop(self):
         pass
 
-    def _add_movie_from_date(self, row, movies_on_date=[]):
+    def _add_movie_from_date(self, row, movies_on_date = []):
         # Recursive function to add all movies on a given date
         if row.getnext().getchildren()[0].get("class") == "program-film":
             movies_on_date.append(row.getnext())
@@ -274,7 +273,7 @@ class DeckchairCinemaSkill(MycroftSkill):
 
         def get_info(info_type):
             # Find element containing info as heading, then return next element
-            heading = next((x for x in right_panel if x.text==info_type))
+            heading = next((x for x in right_panel if x.text == info_type))
             info = heading.getnext().text if heading.getnext().text \
                    else heading.getnext().getchildren().text
             return info
@@ -308,14 +307,14 @@ class DeckchairCinemaSkill(MycroftSkill):
         """
         # TODO assume following year if date is in past?
         year = str(datetime.now().year)
-        date = datetime.strptime(' '.join([date_string, year]), "%A %d %B %Y")
+        date = datetime.strptime(' '.join([date_string, year]), '%A %d %B %Y')
         return date
 
     def _get_first_date(self, tr_list):
         #TODO Consider making generic getDate(self, tr_list, first/last)
         # Recursive function to return first date row of program
         def get_first_date_row(row):
-            if row.getchildren()[0].get("class") == "program-date":
+            if row.getchildren()[0].get('class') == 'program-date':
                 return row.getchildren()[0].text
             else:
                 return get_first_date_row(row.getnext())
@@ -326,7 +325,7 @@ class DeckchairCinemaSkill(MycroftSkill):
     def _get_last_date(self, tr_list):
         # Recursive function to return last date row of program
         def get_last_date_row(row):
-            if row.getchildren()[0].get("class") == "program-date":
+            if row.getchildren()[0].get('class') == 'program-date':
                 return row.getchildren()[0].text
             else:
                 return get_last_date_row(row.getprevious())
