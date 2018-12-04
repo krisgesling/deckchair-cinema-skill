@@ -23,6 +23,7 @@ class DeckchairCinemaSkill(MycroftSkill):
         self._active_title = ''
         self._current_titles = []
         self._movie_dict = {}
+        # TODO remove this var?
         self._previous_request = ''
 
 
@@ -51,8 +52,8 @@ class DeckchairCinemaSkill(MycroftSkill):
                 if x.getchildren()[0].text==when.strftime('%A %-d %B')))
             # TODO what if date_row not found?
             # 3. Test if date is in deckchair program range
-            first_date = self._get_first_date(tr_list)
-            last_date = self._get_last_date(tr_list)
+            first_date = self._get_date_from_list(tr_list, 'first')
+            last_date = self._get_date_from_list(tr_list, 'last')
             # TODO add timezone info to first and last date
             # instead of removing from `when`
             if first_date <= when.replace(tzinfo=None) <= last_date:
@@ -310,29 +311,22 @@ class DeckchairCinemaSkill(MycroftSkill):
         date = datetime.strptime(' '.join([date_string, year]), '%A %d %B %Y')
         return date
 
-    def _get_first_date(self, tr_list):
-        #TODO Consider making generic getDate(self, tr_list, first/last)
+    def _get_date_from_list(self, tr_list, pos):
         # Recursive function to return first date row of program
-        def get_first_date_row(row):
-            if row.getchildren()[0].get('class') == 'program-date':
+        def get_date_row(row):
+            if row.getchildren()[0].get('class')=='program-date':
                 return row.getchildren()[0].text
             else:
-                return get_first_date_row(row.getnext())
-        date_text = get_first_date_row(tr_list[0])
+                if pos=='first':
+                    return get_date_row(row.getnext())
+                elif pos=='last':
+                    return get_date_row(row.getprevious())
+
+        starting_element = tr_list[0] if pos=='first' \
+                           else tr_list[len(tr_list)-1]
+        date_text = get_date_row(starting_element)
         date = self._get_date_from_str(date_text)
         return date
-
-    def _get_last_date(self, tr_list):
-        # Recursive function to return last date row of program
-        def get_last_date_row(row):
-            if row.getchildren()[0].get('class') == 'program-date':
-                return row.getchildren()[0].text
-            else:
-                return get_last_date_row(row.getprevious())
-        date_text = get_last_date_row(tr_list[len(tr_list)-1])
-        date = self._get_date_from_str(date_text)
-        return date
-
 
 def create_skill():
     return DeckchairCinemaSkill()
