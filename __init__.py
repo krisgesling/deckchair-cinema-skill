@@ -300,15 +300,17 @@ class DeckchairCinemaSkill(MycroftSkill):
 
     @staticmethod
     def _get_date_from_str(date_string):
-        """ Get date object from date string, appending current year
+        """ Get date object from date string,
+            increments year if date requested is >3 months in past.
             Args:
             - date_string (string): in format "Saturday 17 November"
             Output:
-            - date (object): instance of datetime.date class
+            - date (class): instance of datetime.date
         """
-        # TODO assume following year if date is in past?
         year = str(datetime.now().year)
         date = datetime.strptime(' '.join([date_string, year]), '%A %d %B %Y')
+        if date.month < datetime.now().month-3:
+            date.replace(year = date.year + 1)
         return date
 
     def _get_date_from_list(self, tr_list, pos):
@@ -321,7 +323,6 @@ class DeckchairCinemaSkill(MycroftSkill):
                     return get_date_row(row.getnext())
                 elif pos=='last':
                     return get_date_row(row.getprevious())
-
         starting_element = tr_list[0] if pos=='first' \
                            else tr_list[len(tr_list)-1]
         date_text = get_date_row(starting_element)
