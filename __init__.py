@@ -13,19 +13,13 @@ from requests import exceptions, get
 __author__ = 'krisgesling'
 LOGGER = LOG(__name__)
 
-# TODO Add caching of program to reduce fetching on multiple queries
-
 
 class DeckchairCinemaSkill(MycroftSkill):
     def __init__(self):
-        MycroftSkill.__init__(self)
-        # super(DeckchairCinemaSkill, self).__init__(name="DeckchairCinemaSkill")
+        super(DeckchairCinemaSkill, self).__init__(name="DeckchairCinemaSkill")
         self._active_title = ''
         self._current_titles = []
         self._movie_dict = {}
-        # TODO remove this var?
-        self._previous_request = ''
-
 
     @intent_file_handler('whats.on.intent')
     def handle_cinema_deckchair(self, message):
@@ -35,27 +29,20 @@ class DeckchairCinemaSkill(MycroftSkill):
             when = extract_datetime(
                 message.data.get('utterance'), lang=self.lang)[0]
             when = datetime.strptime(
-                'Sunday 18 November 2018', '%A %d %B %Y')
+                'Saturday 17 November 2018', '%A %d %B %Y')
             # 2. Scrape website for movie on this date
             # webpage = get('http://www.deckchaircinema.com/program/')
             webpage = get('https://krisgesling.github.io/deckchair-cinema-skill/')
             data_tree = html.fromstring(webpage.content)
             # Get list of table rows from program
             # - these alternate between date and movie[s]
-            # TODO would this be better just fetching the whole tbody
-            # as one element? Can then utilise E.find()
-            # rather than next(iter([x for in if ]))
-            # TODO Consider migrating to Beautiful Soupselection
             tr_list = data_tree.xpath('//table[@id="program"]/tbody/tr')
             # Find child with provided date in format "Monday 22 October"
             date_row = next(( x for x in tr_list
                 if x.getchildren()[0].text==when.strftime('%A %-d %B')))
-            # TODO what if date_row not found?
             # 3. Test if date is in deckchair program range
             first_date = self._get_date_from_list(tr_list, 'first')
             last_date = self._get_date_from_list(tr_list, 'last')
-            # TODO add timezone info to first and last date
-            # instead of removing from `when`
             if first_date <= when.replace(tzinfo=None) <= last_date:
                 # 4. Add all film rows that follow a date row to a list
                 movies_on_date = self._add_movie_from_date(
@@ -84,7 +71,6 @@ class DeckchairCinemaSkill(MycroftSkill):
                 for movie in movies_on_date:
                     movie_details = self._fetch_movie_details(movie)
                     self._movie_dict[movie_details['title']] = movie_details
-                    # Add titles to list, rather than concat into context str
                     self._current_titles.append(
                         movie.getchildren()[0].getchildren()[0].text
                     )
@@ -112,7 +98,7 @@ class DeckchairCinemaSkill(MycroftSkill):
 
 
     """ Handle all follow up questions
-        Each intent_handler requires:
+        Requirements:
         - MovieTitle (string): the context string 'True'
         - detail (vocab): detected speech located in vocab/en-us/*.voc
     """
@@ -159,10 +145,8 @@ class DeckchairCinemaSkill(MycroftSkill):
             Arguments:
                 message (object): incoming from messagebus
                 detail (string): type of detail requested eg 'rating'
-
             Returns: call to speak dialog
         """
-        # TODO Move dialog to dialog files for consistency and localizability
         # If multiple movies and none selected as active, user must choose one
         if len(self._current_titles) > 1 and self._active_title == '':
             # Construct question of all current movie titles
@@ -173,8 +157,6 @@ class DeckchairCinemaSkill(MycroftSkill):
             which_movie_dialog = ''.join(which_movie_dialog_list)
 
             def get_user_selection(utterance, options=self._current_titles):
-                # TODO consider making this reusable, add 'options' param
-                # TODO can it be cached from the validator call?
                 if not utterance:
                     return False
                 # get best match that is > 50% correct
@@ -182,7 +164,6 @@ class DeckchairCinemaSkill(MycroftSkill):
                 if  selection[1] > 0.5:
                     return selection[0]
                 # get position based responses aka ordinals eg "second"
-                # NB: mycroft-core issue #1877 "second one" returns 1
                 num = int(extract_number(utterance, ordinals=True))
                 if (0 < num <= len(options)):
                     return options[num-1]
@@ -198,6 +179,8 @@ class DeckchairCinemaSkill(MycroftSkill):
                 return 'Sorry I didn\'t catch that. %s' % which_movie_dialog
             user_response = self.get_response(
                 dialog = which_movie_dialog,
+                # dialog = 'movie.which.dialog',
+                # data = {'options': which_movie_options},
                 validator = validator,
                 num_retries = 2,
                 on_fail = on_fail
@@ -231,7 +214,6 @@ class DeckchairCinemaSkill(MycroftSkill):
 
     @staticmethod
     def _convert_length_str(string):
-        #TODO consider input as total_mins integer = more reusable
         """ Convert length of time to speakable string
             Arguments:
             - string (string): in format '122m'
@@ -242,7 +224,7 @@ class DeckchairCinemaSkill(MycroftSkill):
         assert re.match('\d+m', string), \
             'Invalid string as argument: %r' % string
         total_mins = int(string[0:-1])
-        assert total_mins > 0, 'total_mins = %r' % total_mins
+        assert total_mins>0, 'total_mins = %r' % total_mins
         hrs = int(total_mins / 60)
         if hrs == 0:
             hrs_spoken = ''
@@ -251,8 +233,8 @@ class DeckchairCinemaSkill(MycroftSkill):
         else:
             hrs_spoken = '%d hours' % hrs
         mins = total_mins % 60
-        conjoin = ' and ' if hrs > 0 and mins > 0 else ''
-        mins_spoken = str(mins) + ' minutes' if (mins > 0) else ''
+        conjoin = ' and ' if hrs>0 and mins>0 else ''
+        mins_spoken = str(mins) + ' minutes' if (mins>0) else ''
         length_spoken = hrs_spoken + conjoin + mins_spoken
         return length_spoken
 
@@ -292,9 +274,6 @@ class DeckchairCinemaSkill(MycroftSkill):
             'year': get_info('Year'),
             'country': get_info('Country of Origin'),
             'language': get_info('Language'),
-            # TODO when else is this movie showing? / Is this showing again?
-            # Could compare 'showtimes' to current date and see if a future
-            # showing is taking place...
         }
         return movie_details
 
@@ -302,9 +281,9 @@ class DeckchairCinemaSkill(MycroftSkill):
     def _get_date_from_str(date_string):
         """ Get date object from date string,
             increments year if date requested is >3 months in past.
-            Args:
+            Arguments:
             - date_string (string): in format "Saturday 17 November"
-            Output:
+            Returns:
             - date (class): instance of datetime.date
         """
         year = str(datetime.now().year)
