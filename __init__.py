@@ -29,7 +29,7 @@ class DeckchairCinemaSkill(MycroftSkill):
             when = extract_datetime(
                 message.data.get('utterance'), lang=self.lang)[0]
             when = datetime.strptime(
-                'Saturday 17 November 2018', '%A %d %B %Y')
+                'Sunday 18 November 2018', '%A %d %B %Y')
             # 2. Scrape website for movie on this date
             # webpage = get('http://www.deckchaircinema.com/program/')
             webpage = get('https://krisgesling.github.io/deckchair-cinema-skill/')
@@ -213,18 +213,16 @@ class DeckchairCinemaSkill(MycroftSkill):
             return movies_on_date
 
     @staticmethod
-    def _convert_length_str(string):
+    def _convert_mins_to_length(total_mins):
         """ Convert length of time to speakable string
             Arguments:
-            - string (string): in format '122m'
+            - total_mins (integer): total length in minutes
             Returns:
             - length_spoken (string): length of time as speakable dialog
                                       eg '2 hours and 2 minutes'
         """
-        assert re.match('\d+m', string), \
-            'Invalid string as argument: %r' % string
-        total_mins = int(string[0:-1])
-        assert total_mins>0, 'total_mins = %r' % total_mins
+        total_mins = int(total_mins)
+        assert total_mins>0, 'Invalid input: total_mins = %r' % total_mins
         hrs = int(total_mins / 60)
         if hrs == 0:
             hrs_spoken = ''
@@ -265,7 +263,7 @@ class DeckchairCinemaSkill(MycroftSkill):
         movie_details = {
             # First details from program page
             'title': movie.getchildren()[0].getchildren()[0].text,
-            'length': self._convert_length_str(movie.getchildren()[2].text),
+            'length': self._convert_mins_to_length(movie.getchildren()[2].text[0:-1]),
             'rating': movie.getchildren()[3].text,
             'screening_location': movie.getchildren()[4].text,
             # Remaining from movie_data
