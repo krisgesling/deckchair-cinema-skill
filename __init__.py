@@ -26,10 +26,11 @@ class DeckchairCinemaSkill(MycroftSkill):
         try:
             # 1. Extract date, or default to today
             # Get a date from requests like "what's on at deckchair tomorrow"
+            now_date = datetime.now()
             when = extract_datetime(
                 message.data.get('utterance'), lang=self.lang)[0]
             when = datetime.strptime(
-                'Sunday 18 November 2018', '%A %d %B %Y')
+                'Saturday 17 November 2018', '%A %d %B %Y')
             # 2. Scrape website for movie on this date
             # webpage = get('http://www.deckchaircinema.com/program/')
             webpage = get('https://krisgesling.github.io/deckchair-cinema-skill/')
@@ -38,8 +39,13 @@ class DeckchairCinemaSkill(MycroftSkill):
             # - these alternate between date and movie[s]
             tr_list = data_tree.xpath('//table[@id="program"]/tbody/tr')
             # Find child with provided date in format "Monday 22 October"
-            date_row = next(( x for x in tr_list
+            try:
+                date_row = next((x for x in tr_list
                 if x.getchildren()[0].text==when.strftime('%A %-d %B')))
+            except StopIteration:
+                LOG.info('Date note found: %r' % when.strftime('%A %-d %B'))
+                return self.speak_dialog('error.datenotfound',
+                    {'date': nice_date(when, now=now_date)})
             # 3. Test if date is in deckchair program range
             first_date = self._get_date_from_list(tr_list, 'first')
             last_date = self._get_date_from_list(tr_list, 'last')
@@ -78,11 +84,10 @@ class DeckchairCinemaSkill(MycroftSkill):
 
             else:
                 # If date is not in the range of the current film program
-                now_date = datetime.now()
                 self.speak_dialog('error.daterange', {
-                    'when': nice_date(when, now_date),
-                    'first_date': nice_date(first_date, now_date),
-                    'last_date': nice_date(last_date, now_date)
+                    'when': nice_date(when, now=now_date),
+                    'first_date': nice_date(first_date, now=now_date),
+                    'last_date': nice_date(last_date, now=now_date)
                     })
 
         except ( exceptions.ConnectionError
@@ -156,27 +161,17 @@ class DeckchairCinemaSkill(MycroftSkill):
             del which_movie_dialog_list[-1] # del last ', or, '
             which_movie_dialog = ''.join(which_movie_dialog_list)
 
-            def get_user_selection(utterance, options=self._current_titles):
-                if not utterance:
-                    return False
-                # get best match that is > 50% correct
-                selection = match_one(utterance, options)
-                if  selection[1] > 0.5:
-                    return selection[0]
-                # get position based responses aka ordinals eg "second"
-                num = int(extract_number(utterance, ordinals=True))
-                if (0 < num <= len(options)):
-                    return options[num-1]
-                else:
-                    return False
-
+            user_selection = False
             def validator(utterance):
-                if get_user_selection(utterance):
+                nonlocal user_selection
+                user_selection = self._prompt_user_selection(
+                    utterance, self._current_titles)
+                if user_selection:
                     return True
                 else:
                     return False
             def on_fail(utterance):
-                return 'Sorry I didn\'t catch that. %s' % which_movie_dialog
+                return f'Sorry I didn\'t catch that. {which_movie_dialog}'
             user_response = self.get_response(
                 dialog = which_movie_dialog,
                 # dialog = 'movie.which.dialog',
@@ -186,9 +181,8 @@ class DeckchairCinemaSkill(MycroftSkill):
                 on_fail = on_fail
                 )
             if user_response:
-                title = get_user_selection(user_response)
                 # Set activeTitle as default for future questions
-                self._active_title = title
+                self._active_title = user_selection
             else:
                 self.speak_dialog('error.no.selection')
 
@@ -305,6 +299,20 @@ class DeckchairCinemaSkill(MycroftSkill):
         date_text = get_date_row(starting_element)
         date = self._get_date_from_str(date_text)
         return date
+
+    def _prompt_user_selection(self, utterance, options):
+        if not utterance:
+            return False
+        # get best match that is > 50% correct
+        (best_match, match_score) = match_one(utterance, options)
+        if  match_score > 0.5:
+            return best_match
+        # get position based responses aka ordinals eg "second"
+        num = int(extract_number(utterance, ordinals=True))
+        if (0 < num <= len(options)):
+            return options[num-1]
+        else:
+            return False
 
 def create_skill():
     return DeckchairCinemaSkill()
