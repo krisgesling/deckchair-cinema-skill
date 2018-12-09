@@ -30,7 +30,7 @@ class DeckchairCinemaSkill(MycroftSkill):
             when = extract_datetime(
                 message.data.get('utterance'), lang=self.lang)[0]
             when = datetime.strptime(
-                'Saturday 17 November 2018', '%A %d %B %Y')
+                'Sunday 25 November 2018', '%A %d %B %Y')
             # 2. Scrape website for movie on this date
             # webpage = get('http://www.deckchaircinema.com/program/')
             webpage = get('https://krisgesling.github.io/deckchair-cinema-skill/')
@@ -43,7 +43,7 @@ class DeckchairCinemaSkill(MycroftSkill):
                 date_row = next((x for x in tr_list
                 if x.getchildren()[0].text==when.strftime('%A %-d %B')))
             except StopIteration:
-                LOG.info('Date note found: %r' % when.strftime('%A %-d %B'))
+                LOG.info(f'Date note found: {when.strftime("%A %-d %B")}')
                 return self.speak_dialog('error.datenotfound',
                     {'date': nice_date(when, now=now_date)})
             # 3. Test if date is in deckchair program range
@@ -216,14 +216,14 @@ class DeckchairCinemaSkill(MycroftSkill):
                                       eg '2 hours and 2 minutes'
         """
         total_mins = int(total_mins)
-        assert total_mins>0, 'Invalid input: total_mins = %r' % total_mins
+        assert total_mins>0, 'Invalid input: total_mins = {total_mins}'
         hrs = int(total_mins / 60)
         if hrs == 0:
             hrs_spoken = ''
         elif hrs == 1:
-            hrs_spoken = '%d hour' % hrs
+            hrs_spoken = f'{hrs} hour'
         else:
-            hrs_spoken = '%d hours' % hrs
+            hrs_spoken = f'{hrs} hours'
         mins = total_mins % 60
         conjoin = ' and ' if hrs>0 and mins>0 else ''
         mins_spoken = str(mins) + ' minutes' if (mins>0) else ''
