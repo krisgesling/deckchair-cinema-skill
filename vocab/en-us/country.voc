@@ -1,10 +1,1 @@
-where is it from
-where is this from
-where is this film from
-where is this movie from
-where was this film made
-where was this movie made
-what country is it from
-what country is this from
-what country is this film from
-what country is this movie from
+(where|what country) (is|was) (it|this|that) (movie|film|) (made|from)
