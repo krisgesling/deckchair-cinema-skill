@@ -14,18 +14,17 @@ __author__ = 'krisgesling'
 LOGGER = LOG(__name__)
 
 
-class DeckchairCinemaSkill(MycroftSkill):
+class DeckchairCinema(MycroftSkill):
     def __init__(self):
-        super(DeckchairCinemaSkill, self).__init__(name="DeckchairCinemaSkill")
-        self._active_title = ''
-        self._current_titles = []
+        super(DeckchairCinema, self).__init__(name="DeckchairCinema")
+        self._current_movie_context = ''
+        self._movies_on_requested_date = []
         self._movie_dict = {}
 
     @intent_file_handler('whats.on.intent')
     def handle_cinema_deckchair(self, message):
         try:
-            # 1. Extract date, or default to today
-            # Get a date from requests like "what's on at deckchair tomorrow"
+            # 1. Extract date from utterance, or default to today
             now_date = datetime.now()
             when = extract_datetime(
                 message.data.get('utterance'), lang=self.lang)[0]
@@ -72,15 +71,15 @@ class DeckchairCinemaSkill(MycroftSkill):
 
                 # 6. Fetch data and set context for follow up questions
                 # Reset data from previous requests.
-                self._current_titles = []
-                self._active_title = ''
+                self._movies_on_requested_date = []
+                self._current_movie_context = ''
                 for movie in movies_on_date:
                     movie_details = self._fetch_movie_details(movie)
                     self._movie_dict[movie_details['title']] = movie_details
-                    self._current_titles.append(
+                    self._movies_on_requested_date.append(
                         movie.getchildren()[0].getchildren()[0].text
                     )
-                self.set_context('MovieTitle', 'True')
+                self.set_context('DeckchairContext', 'True')
 
             else:
                 # If date is not in the range of the current film program
@@ -104,42 +103,42 @@ class DeckchairCinemaSkill(MycroftSkill):
 
     """ Handle all follow up questions
         Requirements:
-        - MovieTitle (string): the context string 'True'
+        - DeckchairContext (string): the context string 'True'
         - detail (vocab): detected speech located in vocab/en-us/*.voc
     """
 
     @intent_handler(IntentBuilder('MovieRatingIntent')
-        .require('MovieTitle').require('rating').build())
+        .require('DeckchairContext').require('rating').build())
     def handle_movie_rating(self, message):
         self._handle_movie_details(message, 'rating')
 
     @intent_handler(IntentBuilder('MovieLengthIntent')
-        .require('MovieTitle').require('length').build())
+        .require('DeckchairContext').require('length').build())
     def handle_movie_length(self, message):
         self._handle_movie_details(message, 'length')
 
     @intent_handler(IntentBuilder('MovieDirectorIntent')
-        .require('MovieTitle').require('director').build())
+        .require('DeckchairContext').require('director').build())
     def handle_movie_director(self, message):
         self._handle_movie_details(message, 'director')
 
     @intent_handler(IntentBuilder('MovieSynopsisIntent')
-        .require('MovieTitle').require('synopsis').build())
+        .require('DeckchairContext').require('synopsis').build())
     def handle_movie_synopsis(self, message):
         self._handle_movie_details(message, 'synopsis')
 
     @intent_handler(IntentBuilder('MovieYearIntent')
-        .require('MovieTitle').require('year').build())
+        .require('DeckchairContext').require('year').build())
     def handle_movie_year(self, message):
         self._handle_movie_details(message, 'year')
 
     @intent_handler(IntentBuilder('MovieCountryIntent')
-        .require('MovieTitle').require('country').build())
+        .require('DeckchairContext').require('country').build())
     def handle_movie_country(self, message):
         self._handle_movie_details(message, 'country')
 
     @intent_handler(IntentBuilder('MovieLanguageIntent')
-        .require('MovieTitle').require('language').build())
+        .require('DeckchairContext').require('language').build())
     def handle_movie_language(self, message):
         self._handle_movie_details(message, 'language')
 
@@ -153,10 +152,10 @@ class DeckchairCinemaSkill(MycroftSkill):
             Returns: call to speak dialog
         """
         # If multiple movies and none selected as active, user must choose one
-        if len(self._current_titles) > 1 and self._active_title == '':
+        if len(self._movies_on_requested_date) > 1 and self._current_movie_context == '':
             # Construct question of all current movie titles
             which_movie_dialog_list = ['Which movie did you mean, ']
-            for title in self._current_titles:
+            for title in self._movies_on_requested_date:
                 which_movie_dialog_list.extend((title, ', or, '))
             del which_movie_dialog_list[-1] # del last ', or, '
             which_movie_dialog = ''.join(which_movie_dialog_list)
@@ -165,7 +164,7 @@ class DeckchairCinemaSkill(MycroftSkill):
             def validator(utterance):
                 nonlocal user_selection
                 user_selection = self._prompt_user_selection(
-                    utterance, self._current_titles)
+                    utterance, self._movies_on_requested_date)
                 if user_selection:
                     return True
                 else:
@@ -182,14 +181,14 @@ class DeckchairCinemaSkill(MycroftSkill):
                 )
             if user_response:
                 # Set activeTitle as default for future questions
-                self._active_title = user_selection
+                self._current_movie_context = user_selection
             else:
                 self.speak_dialog('error.no.selection')
 
-        # use activeTitle else there should be only one _current_titles
-        title = self._active_title if self._active_title \
-                                   and self._movie_dict[self._active_title] \
-                else self._current_titles[0]
+        # use activeTitle else there should be only one _movies_on_requested_date
+        title = self._current_movie_context if self._current_movie_context \
+                    and self._movie_dict[self._current_movie_context] \
+                else self._movies_on_requested_date[0]
         return self.speak_dialog('movie.' + detail, {
             'title': title,
             detail: self._movie_dict[title][detail],
@@ -315,4 +314,4 @@ class DeckchairCinemaSkill(MycroftSkill):
             return False
 
 def create_skill():
-    return DeckchairCinemaSkill()
+    return DeckchairCinema()
