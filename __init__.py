@@ -28,11 +28,15 @@ class DeckchairCinema(MycroftSkill):
             now_date = datetime.now()
             when = extract_datetime(
                 message.data.get('utterance'), lang=self.lang)[0].replace(tzinfo=None)
+            # 2. Scrape website for movie on this date
+            # webpage = get('http://www.deckchaircinema.com/program/')
+
             # !?! For testing purposes only !?!
             when = datetime.strptime(
-                'Sunday 17 March 2019', '%A %d %B %Y').replace(tzinfo=None)
-            # 2. Scrape website for movie on this date
-            webpage = get('http://www.deckchaircinema.com/program/')
+                'Saturday 16 November 2019', '%A %d %B %Y').replace(tzinfo=None)
+            webpage = get('https://krisgesling.github.io/deckchair-cinema-skill/')
+            # ?!? End testing data ?!?
+
             data_tree = html.fromstring(webpage.content)
             # Get list of table rows from program
             # - these alternate between date and movie[s]
@@ -55,7 +59,7 @@ class DeckchairCinema(MycroftSkill):
                 date_row = next((x for x in tr_list
                 if x.getchildren()[0].text==when.strftime('%A %-d %B')))
             except StopIteration:
-                LOG.info(f'Date note found: {when.strftime("%A %-d %B")}')
+                LOG.info('Date note found: {}'.format(when.strftime("%A %-d %B")))
                 return self.speak_dialog('error.datenotfound',
                     {'date': nice_date(when, now=now_date)})
             movies_on_date = self._add_movie_from_date(
@@ -171,7 +175,7 @@ class DeckchairCinema(MycroftSkill):
                 else:
                     return False
             def on_fail(utterance):
-                return f'Sorry I didn\'t catch that. {which_movie_dialog}'
+                return 'Sorry I didn\'t catch that. {}'.format(which_movie_dialog)
             user_response = self.get_response(
                 dialog = which_movie_dialog,
                 # dialog = 'movie.which.dialog',
@@ -221,9 +225,9 @@ class DeckchairCinema(MycroftSkill):
         if hrs == 0:
             hrs_spoken = ''
         elif hrs == 1:
-            hrs_spoken = f'{hrs} hour'
+            hrs_spoken = '{} hour'.format(hrs)
         else:
-            hrs_spoken = f'{hrs} hours'
+            hrs_spoken = '{} hours'.format(hrs)
         mins = total_mins % 60
         conjoin = ' and ' if hrs>0 and mins>0 else ''
         mins_spoken = str(mins) + ' minutes' if (mins>0) else ''
