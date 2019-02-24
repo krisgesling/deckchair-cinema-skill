@@ -27,17 +27,30 @@ class DeckchairCinema(MycroftSkill):
             # 1. Extract date from utterance, or default to today
             now_date = datetime.now()
             when = extract_datetime(
-                message.data.get('utterance'), lang=self.lang)[0]
+                message.data.get('utterance'), lang=self.lang)[0].replace(tzinfo=None)
+            # !?! For testing purposes only !?!
             when = datetime.strptime(
-                'Sunday 25 November 2018', '%A %d %B %Y')
+                'Sunday 17 March 2019', '%A %d %B %Y').replace(tzinfo=None)
             # 2. Scrape website for movie on this date
-            # webpage = get('http://www.deckchaircinema.com/program/')
-            webpage = get('https://krisgesling.github.io/deckchair-cinema-skill/')
+            webpage = get('http://www.deckchaircinema.com/program/')
             data_tree = html.fromstring(webpage.content)
             # Get list of table rows from program
             # - these alternate between date and movie[s]
             tr_list = data_tree.xpath('//table[@id="program"]/tbody/tr')
-            # Find child with provided date in format "Monday 22 October"
+
+            # 3. Test if date is in deckchair program range
+            first_date = self._get_date_from_list(tr_list, 'first')
+            last_date = self._get_date_from_list(tr_list, 'last')
+            # End if date is not in the range of the current film program
+            if when < first_date or last_date < when:
+                self.speak_dialog('error.daterange', {
+                    'when': nice_date(when, now=now_date),
+                    'first_date': nice_date(first_date, now=now_date),
+                    'last_date': nice_date(last_date, now=now_date)
+                    })
+                return False
+
+            # 4. Find movie on provided date
             try:
                 date_row = next((x for x in tr_list
                 if x.getchildren()[0].text==when.strftime('%A %-d %B')))
@@ -45,49 +58,37 @@ class DeckchairCinema(MycroftSkill):
                 LOG.info(f'Date note found: {when.strftime("%A %-d %B")}')
                 return self.speak_dialog('error.datenotfound',
                     {'date': nice_date(when, now=now_date)})
-            # 3. Test if date is in deckchair program range
-            first_date = self._get_date_from_list(tr_list, 'first')
-            last_date = self._get_date_from_list(tr_list, 'last')
-            if first_date <= when.replace(tzinfo=None) <= last_date:
-                # 4. Add all film rows that follow a date row to a list
-                movies_on_date = self._add_movie_from_date(
-                    date_row, movies_on_date=[])
-                # 5. Construct message to return
-                movie_details_dialog = []
-                for movie in movies_on_date:
-                    if len(movie_details_dialog) > 0:
-                        movie_details_dialog.append(', and ')
-                    movie_title = movie.getchildren()[0].getchildren()[0].text
-                    movie_time = nice_time(when.replace(
-                        hour=int(movie.getchildren()[1].text[0:-5]),
-                        minute=int(movie.getchildren()[1].text[-4:-2])))
-                    movie_details_dialog.extend(
-                        [movie_title, ', at ', movie_time])
+            movies_on_date = self._add_movie_from_date(
+                date_row, movies_on_date=[])
 
-                self.speak_dialog('whats.on', {
-                    'when': nice_date(when, now=datetime.now()),
-                    'movie_details': ''.join(movie_details_dialog)
-                    })
+            # 5. Construct message to return
+            movie_details_dialog = []
+            for movie in movies_on_date:
+                if len(movie_details_dialog) > 0:
+                    movie_details_dialog.append(', and ')
+                movie_title = movie.getchildren()[0].getchildren()[0].text
+                movie_time = nice_time(when.replace(
+                    hour=int(movie.getchildren()[1].text[0:-5]),
+                    minute=int(movie.getchildren()[1].text[-4:-2])))
+                movie_details_dialog.extend(
+                    [movie_title, ', at ', movie_time])
 
-                # 6. Fetch data and set context for follow up questions
-                # Reset data from previous requests.
-                self._movies_on_requested_date = []
-                self._current_movie_context = ''
-                for movie in movies_on_date:
-                    movie_details = self._fetch_movie_details(movie)
-                    self._movie_dict[movie_details['title']] = movie_details
-                    self._movies_on_requested_date.append(
-                        movie.getchildren()[0].getchildren()[0].text
-                    )
-                self.set_context('DeckchairContext', 'True')
+            self.speak_dialog('whats.on', {
+                'when': nice_date(when, now=datetime.now()),
+                'movie_details': ''.join(movie_details_dialog)
+                })
 
-            else:
-                # If date is not in the range of the current film program
-                self.speak_dialog('error.daterange', {
-                    'when': nice_date(when, now=now_date),
-                    'first_date': nice_date(first_date, now=now_date),
-                    'last_date': nice_date(last_date, now=now_date)
-                    })
+            # 6. Fetch data and set context for follow up questions
+            # Reset data from previous requests.
+            self._movies_on_requested_date = []
+            self._current_movie_context = ''
+            for movie in movies_on_date:
+                movie_details = self._fetch_movie_details(movie)
+                self._movie_dict[movie_details['title']] = movie_details
+                self._movies_on_requested_date.append(
+                    movie.getchildren()[0].getchildren()[0].text
+                )
+            self.set_context('DeckchairContext', 'True')
 
         except ( exceptions.ConnectionError
             or exceptions.HTTPError
