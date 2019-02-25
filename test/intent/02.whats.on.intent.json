@@ -1,5 +1,5 @@
 {
     "expected_dialog": "whats.on",
     "intent_type": "whats.on.intent",
-    "utterance": "deck chair cinema"
+    "utterance": "which films are on at deckchair"
 }
