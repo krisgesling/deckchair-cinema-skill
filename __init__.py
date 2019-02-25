@@ -125,22 +125,22 @@ class DeckchairCinema(MycroftSkill):
         - detail (vocab): detected speech located in vocab/en-us/*.voc
     """
     @intent_handler(IntentBuilder('MovieRatingIntent')
-        .require('DeckchairContext').require('rating').build())
+        .require('DeckchairContext').require('what').require('rating').build())
     def handle_movie_rating(self, message):
         self._handle_movie_details(message, 'rating')
 
     @intent_handler(IntentBuilder('MovieLengthIntent')
-        .require('DeckchairContext').require('length').build())
+        .require('DeckchairContext').require('how').require('long').build())
     def handle_movie_length(self, message):
         self._handle_movie_details(message, 'length')
 
     @intent_handler(IntentBuilder('MovieDirectorIntent')
-        .require('DeckchairContext').require('director').build())
+        .require('DeckchairContext').require('who').require('director').build())
     def handle_movie_director(self, message):
         self._handle_movie_details(message, 'director')
 
     @intent_handler(IntentBuilder('MovieSynopsisIntent')
-        .require('DeckchairContext').require('synopsis').build())
+        .require('DeckchairContext').require('what').require('synopsis').build())
     def handle_movie_synopsis(self, message):
         self._handle_movie_details(message, 'synopsis')
 

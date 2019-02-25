@@ -1,0 +1,5 @@
+{
+    "set_context": {"DeckchairContext": "True"},
+    "utterance": "when was that released",
+    "expected_dialog": "movie.year"
+}

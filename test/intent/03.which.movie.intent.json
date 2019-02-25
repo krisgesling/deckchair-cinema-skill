@@ -1,0 +1,5 @@
+{
+    "utterance": "what is that film rated",
+    "responses": ["first"],
+    "expected_dialog": "movie.rating"
+}
