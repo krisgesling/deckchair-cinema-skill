@@ -13,10 +13,28 @@ from requests import exceptions, get
 __author__ = 'krisgesling'
 LOGGER = LOG(__name__)
 
+class CinemaProgram():
+    program_url = 'http://www.deckchaircinema.com/program/'
+
+    def __init__(self):
+        has_fetched: False
+
+    def fetch(self, **keyword_parameters):
+        # alternate url passed in by skill test runner
+        if 'url' in keyword_parameters:
+            self.program_url = keyword_parameters['url']
+        webpage = get(self.program_url)
+        data_tree = html.fromstring(webpage.content)
+        # Get list of table rows from program
+        # - these alternate between date and movie[s]
+        program_tr_list = data_tree.xpath('//table[@id="program"]/tbody/tr')
+        return program_tr_list
 
 class DeckchairCinema(MycroftSkill):
     def __init__(self):
         super(DeckchairCinema, self).__init__(name="DeckchairCinema")
+        self.cinema_program = CinemaProgram()
+        self.testing_date = None
         self._current_movie_context = ''
         self._movies_on_requested_date = []
         self._movie_dict = {}
@@ -24,28 +42,22 @@ class DeckchairCinema(MycroftSkill):
     @intent_file_handler('whats.on.intent')
     def handle_cinema_deckchair(self, message):
         try:
-            # 1. Extract date from utterance, or default to today
+            # 1. Scrape website for movie on this date
+            program_tr_list = self.cinema_program.fetch()
+
+            # 2. Extract date from utterance, or default to today
+            # replacing tzinfo is temporary fix
             now_date = datetime.now()
             when = extract_datetime(
-                message.data.get('utterance'), lang=self.lang)[0].replace(tzinfo=None)
-            # 2. Scrape website for movie on this date
-            # webpage = get('http://www.deckchaircinema.com/program/')
+                message.data.get('utterance'),
+                lang=self.lang)[0].replace(tzinfo=None)
+            if self.testing_date is not None:
+                when = self.testing_date
 
-            # !?! For testing purposes only !?!
-            when = datetime.strptime(
-                'Saturday 16 November 2019', '%A %d %B %Y').replace(tzinfo=None)
-            webpage = get('https://krisgesling.github.io/deckchair-cinema-skill/')
-            # ?!? End testing data ?!?
-
-            data_tree = html.fromstring(webpage.content)
-            # Get list of table rows from program
-            # - these alternate between date and movie[s]
-            tr_list = data_tree.xpath('//table[@id="program"]/tbody/tr')
 
             # 3. Test if date is in deckchair program range
-            first_date = self._get_date_from_list(tr_list, 'first')
-            last_date = self._get_date_from_list(tr_list, 'last')
-            # End if date is not in the range of the current film program
+            first_date = self._get_date_from_list(program_tr_list, 'first')
+            last_date = self._get_date_from_list(program_tr_list, 'last')
             if when < first_date or last_date < when:
                 self.speak_dialog('error.daterange', {
                     'when': nice_date(when, now=now_date),
@@ -56,10 +68,11 @@ class DeckchairCinema(MycroftSkill):
 
             # 4. Find movie on provided date
             try:
-                date_row = next((x for x in tr_list
+                date_row = next((x for x in program_tr_list
                 if x.getchildren()[0].text==when.strftime('%A %-d %B')))
             except StopIteration:
-                LOG.info('Date note found: {}'.format(when.strftime("%A %-d %B")))
+                LOG.info('Date note found: {}'.format(
+                    when.strftime('%A %-d %B')))
                 return self.speak_dialog('error.datenotfound',
                     {'date': nice_date(when, now=now_date)})
             movies_on_date = self._add_movie_from_date(
@@ -111,7 +124,6 @@ class DeckchairCinema(MycroftSkill):
         - DeckchairContext (string): the context string 'True'
         - detail (vocab): detected speech located in vocab/en-us/*.voc
     """
-
     @intent_handler(IntentBuilder('MovieRatingIntent')
         .require('DeckchairContext').require('rating').build())
     def handle_movie_rating(self, message):
@@ -288,7 +300,7 @@ class DeckchairCinema(MycroftSkill):
             date.replace(year = date.year + 1)
         return date
 
-    def _get_date_from_list(self, tr_list, pos):
+    def _get_date_from_list(self, program_tr_list, pos):
         # Recursive function to return first date row of program
         def get_date_row(row):
             if row.getchildren()[0].get('class')=='program-date':
@@ -298,8 +310,8 @@ class DeckchairCinema(MycroftSkill):
                     return get_date_row(row.getnext())
                 elif pos=='last':
                     return get_date_row(row.getprevious())
-        starting_element = tr_list[0] if pos=='first' \
-                           else tr_list[len(tr_list)-1]
+        starting_element = program_tr_list[0] if pos=='first' \
+                           else program_tr_list[len(program_tr_list)-1]
         date_text = get_date_row(starting_element)
         date = self._get_date_from_str(date_text)
         return date
