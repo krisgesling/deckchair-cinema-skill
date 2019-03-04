@@ -59,7 +59,7 @@ class DeckchairCinema(MycroftSkill):
             first_date = self._get_date_from_list(program_tr_list, 'first')
             last_date = self._get_date_from_list(program_tr_list, 'last')
             if when < first_date or last_date < when:
-                self.speak_dialog('error.daterange', {
+                self.speak_dialog('error.datenotfound', {
                     'when': nice_date(when, now=now_date),
                     'first_date': nice_date(first_date, now=now_date),
                     'last_date': nice_date(last_date, now=now_date)
@@ -73,8 +73,11 @@ class DeckchairCinema(MycroftSkill):
             except StopIteration:
                 LOG.info('Date note found: {}'.format(
                     when.strftime('%A %-d %B')))
-                return self.speak_dialog('error.datenotfound',
-                    {'date': nice_date(when, now=now_date)})
+                return self.speak_dialog('error.datenotfound', {
+                    'when': nice_date(when, now=now_date),
+                    'first_date': nice_date(first_date, now=now_date),
+                    'last_date': nice_date(last_date, now=now_date)
+                    })
             movies_on_date = self._add_movie_from_date(
                 date_row, movies_on_date=[])
 
@@ -170,37 +173,7 @@ class DeckchairCinema(MycroftSkill):
         """
         # If multiple movies and none selected as active, user must choose one
         if len(self._movies_on_requested_date) > 1 and self._current_movie_context == '':
-            # Construct question of all current movie titles
-            which_movie_dialog_list = ['Which movie did you mean, ']
-            for title in self._movies_on_requested_date:
-                which_movie_dialog_list.extend((title, ', or, '))
-            del which_movie_dialog_list[-1] # del last ', or, '
-            which_movie_dialog = ''.join(which_movie_dialog_list)
-
-            user_selection = False
-            def validator(utterance):
-                nonlocal user_selection
-                user_selection = self._prompt_user_selection(
-                    utterance, self._movies_on_requested_date)
-                if user_selection:
-                    return True
-                else:
-                    return False
-            def on_fail(utterance):
-                return 'Sorry I didn\'t catch that. {}'.format(which_movie_dialog)
-            user_response = self.get_response(
-                dialog = which_movie_dialog,
-                # dialog = 'movie.which.dialog',
-                # data = {'options': which_movie_options},
-                validator = validator,
-                num_retries = 2,
-                on_fail = on_fail
-                )
-            if user_response:
-                # Set activeTitle as default for future questions
-                self._current_movie_context = user_selection
-            else:
-                self.speak_dialog('error.no.selection')
+            self._prompt_user_selection(self._movies_on_requested_date)
 
         # use activeTitle else there should be only one _movies_on_requested_date
         title = self._current_movie_context if self._current_movie_context \
@@ -210,9 +183,6 @@ class DeckchairCinema(MycroftSkill):
             'title': title,
             detail: self._movie_dict[title][detail],
             })
-
-    def stop(self):
-        pass
 
     def _add_movie_from_date(self, row, movies_on_date = []):
         # Recursive function to add all movies on a given date
@@ -316,7 +286,7 @@ class DeckchairCinema(MycroftSkill):
         date = self._get_date_from_str(date_text)
         return date
 
-    def _prompt_user_selection(self, utterance, options):
+    def _get_user_selection(self, utterance, options):
         if not utterance:
             return False
         # get best match that is > 50% correct
@@ -329,6 +299,44 @@ class DeckchairCinema(MycroftSkill):
             return options[num-1]
         else:
             return False
+
+    def _prompt_user_selection(self, movie_list):
+        # Construct question of all current movie titles
+        which_movie_dialog_list = [self.translate('which.movie')]
+        for title in movie_list[:-1]:
+            which_movie_dialog_list.append(self.translate('movie.title',
+                {'title': title}))
+            which_movie_dialog_list.append(self.translate('or'))
+        which_movie_dialog_list.append(self.translate('movie.title',
+            {'title': movie_list[-1]}))
+        which_movie_dialog = ' '.join(which_movie_dialog_list)
+
+        user_selection = False
+        def validator(utterance):
+            nonlocal user_selection
+            user_selection = self._get_user_selection(
+                utterance, movie_list)
+            if user_selection:
+                return True
+            else:
+                return False
+        def on_fail(utterance):
+            return self.translate('which.movie.noresponse',
+                {'repeat': which_movie_dialog})
+        user_response = self.get_response(
+            dialog = which_movie_dialog,
+            validator = validator,
+            num_retries = 1,
+            on_fail = on_fail
+            )
+        if user_response:
+            # Set activeTitle as default for future questions
+            self._current_movie_context = user_selection
+        else:
+            self.speak_dialog('error.no.selection')
+
+    def stop(self):
+        pass
 
 def create_skill():
     return DeckchairCinema()
