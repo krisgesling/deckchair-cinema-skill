@@ -85,17 +85,19 @@ class DeckchairCinema(MycroftSkill):
             movie_details_dialog = []
             for movie in movies_on_date:
                 if len(movie_details_dialog) > 0:
-                    movie_details_dialog.append(', and ')
+                    movie_details_dialog.append(self.translate('and'))
                 movie_title = movie.getchildren()[0].getchildren()[0].text
                 movie_time = nice_time(when.replace(
                     hour=int(movie.getchildren()[1].text[0:-5]),
                     minute=int(movie.getchildren()[1].text[-4:-2])))
-                movie_details_dialog.extend(
-                    [movie_title, ', at ', movie_time])
+                movie_details_dialog.append(self.translate('movie.at.time', {
+                    'title': movie_title,
+                    'time': movie_time
+                }))
 
             self.speak_dialog('whats.on', {
                 'when': nice_date(when, now=datetime.now()),
-                'movie_details': ''.join(movie_details_dialog)
+                'movie_details': ', '.join(movie_details_dialog)
                 })
 
             # 6. Fetch data and set context for follow up questions
@@ -309,7 +311,7 @@ class DeckchairCinema(MycroftSkill):
             which_movie_dialog_list.append(self.translate('or'))
         which_movie_dialog_list.append(self.translate('movie.title',
             {'title': movie_list[-1]}))
-        which_movie_dialog = ' '.join(which_movie_dialog_list)
+        which_movie_dialog = ', '.join(which_movie_dialog_list)
 
         user_selection = False
         def validator(utterance):
