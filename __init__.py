@@ -1,7 +1,8 @@
 import re
 from adapt.intent import IntentBuilder
-from datetime import datetime
+from datetime import datetime, timedelta
 from lxml import html
+from os.path import join, exists, getmtime
 from mycroft import MycroftSkill, intent_file_handler, intent_handler
 from mycroft.skills.context import adds_context, removes_context
 from mycroft.util.format import nice_date, nice_time
@@ -14,40 +15,63 @@ __author__ = 'krisgesling'
 LOGGER = LOG(__name__)
 
 class CinemaProgram():
-    program_url = 'http://www.deckchaircinema.com/program/'
-
     def __init__(self):
-        has_fetched: False
+        self.remote_url = 'http://www.deckchaircinema.com/program/'
+        self.cache_filename = 'program.html'
 
     def fetch(self, **keyword_parameters):
-        # alternate url passed in by skill test runner
-        if 'url' in keyword_parameters:
-            self.program_url = keyword_parameters['url']
-        webpage = get(self.program_url)
-        data_tree = html.fromstring(webpage.content)
+        self.use_cache = False
+        # Check for existing cache and test age
+        if 'cache' in keyword_parameters:
+            directory, now_date = keyword_parameters['cache']
+            cache_file = '/'.join([directory, self.cache_filename])
+            if exists(cache_file):
+                cache_age = now_date - datetime.fromtimestamp(getmtime(cache_file))
+                self.use_cache = True if cache_age.days < 1 else False
+        if self.use_cache:
+            with open(cache_file, "r") as file:
+                data_tree = html.fromstring(file.read())
+        else:
+            # Use test url passed in by skill test runner if exists
+            program_url = keyword_parameters['test_url'] \
+                if 'test_url' in keyword_parameters \
+                else self.remote_url
+            # Actually fetch the program
+            webpage = get(program_url).content
+            data_tree = html.fromstring(webpage)
+            # Save new cache if not test runner
+            if 'cache' in keyword_parameters:
+                with open(cache_file, "w") as file:
+                    file.write(str(webpage))
+                    file.close()
+
         # Get list of table rows from program
         # - these alternate between date and movie[s]
         program_tr_list = data_tree.xpath('//table[@id="program"]/tbody/tr')
         return program_tr_list
 
+
 class DeckchairCinema(MycroftSkill):
     def __init__(self):
         super(DeckchairCinema, self).__init__(name="DeckchairCinema")
         self.cinema_program = CinemaProgram()
-        self.testing_date = None
         self._current_movie_context = ''
         self._movies_on_requested_date = []
         self._movie_dict = {}
+        # TODO Remove this
+        self.testing_date = None
 
     @intent_file_handler('whats.on.intent')
     def handle_cinema_deckchair(self, message):
         try:
+            now_date = datetime.now()
             # 1. Scrape website for movie on this date
-            program_tr_list = self.cinema_program.fetch()
+            program_tr_list = self.cinema_program.fetch(
+                cache=[join(self.file_system.path), now_date])
 
             # 2. Extract date from utterance, or default to today
             # replacing tzinfo is temporary fix
-            now_date = datetime.now()
+
             when = extract_datetime(
                 message.data.get('utterance'),
                 lang=self.lang)[0].replace(tzinfo=None)
@@ -222,6 +246,7 @@ class DeckchairCinema(MycroftSkill):
         # Fetch extra movie data from dedicated webpage
         movie_page = get(movie.getchildren()[5].getchildren()[0].get('href'))
         movie_data = html.fromstring(movie_page.content)
+        # TODO cache result - is it worth creating a movie class?
         synopsis_element = movie_data.xpath(
             '//div[@id="main_content"]/div[@class="container"] \
             /div[@class="row"]/div[@class="span8"] \

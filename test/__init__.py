@@ -8,7 +8,7 @@ def test_runner(skill, example, emitter, loader):
 
     # Fetch a sample program from mocked page
     test_tr_list = s[0].cinema_program.fetch(
-        url="https://krisgesling.github.io/deckchair-cinema-skill/")
+        test_url="https://krisgesling.github.io/deckchair-cinema-skill/")
     s[0].cinema_program = MagicMock()
     s[0].cinema_program.fetch.return_value = test_tr_list
 
