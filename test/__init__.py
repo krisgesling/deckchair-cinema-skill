@@ -1,4 +1,5 @@
 from datetime import datetime
+from pytz import timezone
 from unittest.mock import MagicMock
 from test.integrationtests.skills.skill_tester import SkillTest
 
@@ -13,8 +14,8 @@ def test_runner(skill, example, emitter, loader):
     s[0].cinema_program.fetch.return_value = test_tr_list
 
     # Set date to match mocked page.
-    s[0].testing_date = datetime.strptime(
-        'Saturday 16 November 2019', '%A %d %B %Y').replace(tzinfo=None)
+    testing_date = datetime.strptime('16 November 2019', '%d %B %Y')
+    s[0].testing_date = timezone('Australia/Darwin').localize(testing_date)
 
 
     return SkillTest(skill, example, emitter).run(loader)
