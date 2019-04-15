@@ -3,12 +3,13 @@ from adapt.intent import IntentBuilder
 from datetime import datetime, timedelta
 from lxml import html
 from os.path import join, exists, getmtime
+from pytz import timezone
+from requests import exceptions, get
 from mycroft import MycroftSkill, intent_file_handler, intent_handler
 from mycroft.skills.context import adds_context, removes_context
 from mycroft.util.format import nice_date, nice_duration, nice_time
 from mycroft.util.parse import extract_datetime, extract_duration, \
                                extract_number, match_one
-from requests import exceptions, get
 
 __author__ = 'krisgesling'
 
@@ -76,14 +77,9 @@ class DeckchairCinema(MycroftSkill):
                 return
 
             # 2. Extract date from utterance, or default to today
-            # replacing tzinfo is temporary fix
-
-            when = extract_datetime(
-                message.data.get('utterance'),
-                lang=self.lang)[0].replace(tzinfo=None)
+            when = extract_datetime(message.data.get('utterance'))[0]
             if self.testing_date is not None:
                 when = self.testing_date
-
 
             # 3. Test if date is in deckchair program range
             first_date = self._get_date_from_list(program_tr_list, 'first')
@@ -259,11 +255,12 @@ class DeckchairCinema(MycroftSkill):
         return movie_details
 
     @staticmethod
-    def _get_date_from_str(date_string):
+    def _get_date_from_str(date_string, tz='Australia/Darwin'):
         """ Get date object from date string,
             increments year if date requested is >3 months in past.
             Arguments:
             - date_string (string): in format "Saturday 17 November"
+            - tz (string, optional): defaults to 'Australia/Darwin'
             Returns:
             - date (class): instance of datetime.date
         """
@@ -271,7 +268,7 @@ class DeckchairCinema(MycroftSkill):
         date = datetime.strptime(' '.join([date_string, year]), '%A %d %B %Y')
         if date.month < datetime.now().month-3:
             date.replace(year = date.year + 1)
-        return date
+        return timezone(tz).localize(date)
 
     def _get_date_from_list(self, program_tr_list, pos):
         # Recursive function to return first date row of program
