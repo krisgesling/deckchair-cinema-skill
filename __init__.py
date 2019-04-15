@@ -16,31 +16,31 @@ class CinemaProgram():
         self.remote_url = 'http://www.deckchaircinema.com/program/'
         self.cache_filename = 'program.html'
 
-    def fetch(self, **keyword_parameters):
+    def fetch(self, **kwargs):
         self.use_cache = False
         # Check for existing cache and test age
-        if 'cache' in keyword_parameters:
-            directory, now_date = keyword_parameters['cache']
+        if 'cache' in kwargs:
+            directory, now_date = kwargs['cache']
             cache_file = '/'.join([directory, self.cache_filename])
             if exists(cache_file):
-                cache_age = now_date - datetime.fromtimestamp(getmtime(cache_file))
+                cache_timestamp = datetime.fromtimestamp(getmtime(cache_file))
+                cache_age = now_date - cache_timestamp
                 self.use_cache = True if cache_age.days < 1 else False
         if self.use_cache:
             with open(cache_file, "r") as file:
                 data_tree = html.fromstring(file.read())
         else:
             # Use test url passed in by skill test runner if exists
-            program_url = keyword_parameters['test_url'] \
-                if 'test_url' in keyword_parameters \
+            program_url = kwargs['test_url'] if 'test_url' in kwargs \
                 else self.remote_url
             # Actually fetch the program
             webpage = get(program_url).content
             data_tree = html.fromstring(webpage)
             # Save new cache if not test runner
-            if 'cache' in keyword_parameters:
-                with open(cache_file, "w") as file:
-                    file.write(str(webpage))
-                    file.close()
+            if 'cache' in kwargs:
+                with open(cache_file, "w") as cache_file:
+                    cache_file.write(str(webpage))
+                    cache_file.close()
 
         # Get list of table rows from program
         # - these alternate between date and movie[s]
@@ -55,7 +55,6 @@ class DeckchairCinema(MycroftSkill):
         self._current_movie_context = ''
         self._movies_on_requested_date = []
         self._movie_dict = {}
-        # TODO Remove this
         self.testing_date = None
 
     @intent_file_handler('whats.on.intent')
