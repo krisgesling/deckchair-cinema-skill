@@ -5,8 +5,9 @@ from lxml import html
 from os.path import join, exists, getmtime
 from mycroft import MycroftSkill, intent_file_handler, intent_handler
 from mycroft.skills.context import adds_context, removes_context
-from mycroft.util.format import nice_date, nice_time
-from mycroft.util.parse import extract_datetime, extract_number, match_one
+from mycroft.util.format import nice_date, nice_duration, nice_time
+from mycroft.util.parse import extract_datetime, extract_duration, \
+                               extract_number, match_one
 from requests import exceptions, get
 
 __author__ = 'krisgesling'
@@ -216,35 +217,12 @@ class DeckchairCinema(MycroftSkill):
         else:
             return movies_on_date
 
-    @staticmethod
-    def _convert_mins_to_length(total_mins):
-        """ Convert length of time to speakable string
-            Arguments:
-            - total_mins (integer): total length in minutes
-            Returns:
-            - length_spoken (string): length of time as speakable dialog
-                                      eg '2 hours and 2 minutes'
-        """
-        total_mins = int(total_mins)
-        assert total_mins>0, 'Invalid input: total_mins = {total_mins}'
-        hrs = int(total_mins / 60)
-        if hrs == 0:
-            hrs_spoken = ''
-        elif hrs == 1:
-            hrs_spoken = '{} hour'.format(hrs)
-        else:
-            hrs_spoken = '{} hours'.format(hrs)
-        mins = total_mins % 60
-        conjoin = ' and ' if hrs>0 and mins>0 else ''
-        mins_spoken = str(mins) + ' minutes' if (mins>0) else ''
-        length_spoken = hrs_spoken + conjoin + mins_spoken
-        return length_spoken
-
     def _fetch_movie_details(self, movie):
         # Fetch extra movie data from dedicated webpage
         movie_page = get(movie.getchildren()[5].getchildren()[0].get('href'))
         movie_data = html.fromstring(movie_page.content)
         # TODO cache result - is it worth creating a movie class?
+        duration_mins = movie.getchildren()[2].text[0:-1] + ' minutes'
         synopsis_element = movie_data.xpath(
             '//div[@id="main_content"]/div[@class="container"] \
             /div[@class="row"]/div[@class="span8"] \
@@ -268,7 +246,7 @@ class DeckchairCinema(MycroftSkill):
         movie_details = {
             # First details from program page
             'title': movie.getchildren()[0].getchildren()[0].text,
-            'length': self._convert_mins_to_length(movie.getchildren()[2].text[0:-1]),
+            'length': nice_duration(extract_duration(duration_mins)[0]),
             'rating': movie.getchildren()[3].text,
             'screening_location': movie.getchildren()[4].text,
             # Remaining from movie_data
