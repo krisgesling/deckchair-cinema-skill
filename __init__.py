@@ -6,13 +6,10 @@ from os.path import join, exists, getmtime
 from mycroft import MycroftSkill, intent_file_handler, intent_handler
 from mycroft.skills.context import adds_context, removes_context
 from mycroft.util.format import nice_date, nice_time
-from mycroft.util.log import LOG
 from mycroft.util.parse import extract_datetime, extract_number, match_one
 from requests import exceptions, get
 
-
 __author__ = 'krisgesling'
-LOGGER = LOG(__name__)
 
 class CinemaProgram():
     def __init__(self):
@@ -66,8 +63,17 @@ class DeckchairCinema(MycroftSkill):
         try:
             now_date = datetime.now()
             # 1. Scrape website for movie on this date
-            program_tr_list = self.cinema_program.fetch(
-                cache=[join(self.file_system.path), now_date])
+            try:
+                program_tr_list = self.cinema_program.fetch(
+                    cache=[join(self.file_system.path), now_date])
+            except ( exceptions.ConnectionError
+                or exceptions.HTTPError
+                or exceptions.Timeout
+                or exceptions.TooManyRedirects
+                ) as e:
+                self.log.error('Error: {0}'.format(e))
+                self.speak_dialog('error.http')
+                return
 
             # 2. Extract date from utterance, or default to today
             # replacing tzinfo is temporary fix
@@ -95,7 +101,7 @@ class DeckchairCinema(MycroftSkill):
                 date_row = next((x for x in program_tr_list
                 if x.getchildren()[0].text==when.strftime('%A %-d %B')))
             except StopIteration:
-                LOG.info('Date note found: {}'.format(
+                self.log.info('Date note found: {}'.format(
                     when.strftime('%A %-d %B')))
                 return self.speak_dialog('error.datenotfound', {
                     'when': nice_date(when, now=now_date),
@@ -136,15 +142,8 @@ class DeckchairCinema(MycroftSkill):
                 )
             self.set_context('DeckchairContext', 'True')
 
-        except ( exceptions.ConnectionError
-            or exceptions.HTTPError
-            or exceptions.Timeout
-            or exceptions.TooManyRedirects
-            ) as e:
-            LOG.error('Error: {0}'.format(e))
-            self.speak_dialog('error.http')
         except Exception as e:
-            LOG.exception('Error: {0}'.format(e))
+            self.log.exception(format(e))
             self.speak_dialog('error')
 
 
