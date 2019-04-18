@@ -2,7 +2,7 @@
 What's on at the Deckchair Cinema in Darwin.
 
 ## About
-Deckchair Cinema is a unique outdoor cinema experience in Darwin, Australia. We are fully independent and screens films that are often unavailable to local audiences. For more information see deckchaircinema.com
+Deckchair Cinema is a unique outdoor cinema experience in Darwin, Australia. We are fully independent and screen films that are often unavailable to local audiences. For more information see deckchaircinema.com
 
 ## Examples
 * "What's on at deckchair tonight"
