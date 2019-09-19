@@ -1,1 +1,4 @@
 (what|which) (movie|movies|film|films) (is|are) (showing|on) at (deckchair|deck chair) cinema
+(what|which) (movie|movies|film|films) (is|are) (showing|on) at (deckchair|deck chair) cinema {day}
+(what is|what's) (showing|on) at (deckchair|deck chair|the) cinema
+(what is|what's) (showing|on) at (deckchair|deck chair|the) cinema {day}
