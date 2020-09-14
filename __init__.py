@@ -11,7 +11,6 @@ from mycroft.util.format import nice_date, nice_duration, nice_time
 from mycroft.util.parse import extract_datetime, extract_duration, \
                                extract_number, match_one
 
-__author__ = 'krisgesling'
 
 class CinemaProgram():
     def __init__(self):
